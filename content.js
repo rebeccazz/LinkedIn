@@ -118,7 +118,24 @@ function getRecentActivity() {
 
 // Main function: collect profile data
 function getProfileData() {
-  const name = document.querySelector("h1")?.innerText || null;
+  let name = null;
+
+  // Try h1 first
+  name = document.querySelector("h1")?.innerText || null;
+
+  // Fallback: look for name in common LinkedIn selectors
+  if (!name) {
+    const nameEl = document.querySelector('[data-testid="top-card-profile-headline"]')?.parentElement?.querySelector('h1');
+    name = nameEl?.innerText || null;
+  }
+
+  // Last resort: check the page title
+  if (!name) {
+    const pageTitle = document.title;
+    const match = pageTitle.match(/^(.*?)\s*\|/);
+    name = match ? match[1] : null;
+  }
+
   const title = document.querySelector(".text-body-medium")?.innerText || null;
 
   const experienceBlocks = getExperienceBlocks();

@@ -189,6 +189,7 @@ document.getElementById("generate").onclick = async () => {
     console.log("📊 Full profile:", profile);
 
     const exp = extractExperience(profile.experienceBlocks);
+    const firstName = profile.name?.split(" ")[0] || "there";
 
     // Generate Option 1 (experience)
     const option1Prompt = buildExperiencePrompt(exp);
@@ -197,6 +198,7 @@ document.getElementById("generate").onclick = async () => {
       .replace(/^"|"$/g, "")
       .replace(/\n/g, " ")
       .trim();
+    option1Text = `Hi ${firstName}, ${option1Text}`;
 
     document.getElementById("option1-output").innerText = option1Text;
     document.getElementById("option1-copy").style.display = "inline-block";
@@ -211,6 +213,7 @@ document.getElementById("generate").onclick = async () => {
         .replace(/^"|"$/g, "")
         .replace(/\n/g, " ")
         .trim();
+      option2Text = `Hi ${firstName}, ${option2Text}`;
       document.getElementById("option2-copy").style.display = "inline-block";
     }
 
