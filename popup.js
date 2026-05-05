@@ -49,7 +49,7 @@ function extractExperience(experienceBlocks) {
   };
 }
 
-// ===== 🔧 2. Prompt builder for experience =====
+// ===== 🔧 2. Prompt builder based on client's experience =====
 function buildExperiencePrompt({ currentTitle, currentDescription, previousTitle, currentCompany, previousCompany }) {
   return `
 #CONTEXT#
@@ -91,18 +91,28 @@ Output only the sentence.
 `;
 }
 
-// ===== 🔧 2b. Prompt builder for posts =====
+// ===== 🔧 2b. Prompt builder based on client's posts =====
 function buildInsightPrompt(postText) {
   return `
-Write ONE LinkedIn opener sentence that references this post or comment as insightful.
-
-Rules:
-- Start with "really" (lowercase)
-- Under 150 characters
-- Reference something specific from the content
-- Sound natural, not generic
+You are writing a genuine, personalized LinkedIn connection message opener that shows you actually read someone's post.
 
 Post content: ${postText}
+
+Your task:
+1. Identify the core insight or main point they're making (not the generic topic, but what specifically they're saying)
+2. Rephrase their main idea back to them in your own words—brief, but showing you understood it
+3. Write ONE sentence that starts with "saw your post" or "read your post" and references their specific point
+
+Example good response: "saw your post about remote work and your point about async communication is spot-on for distributed teams"
+Example bad response: "saw your post about remote work and it was really great" (too generic, doesn't show understanding)
+
+Rules:
+- Start with "saw your post" or "read your post" (lowercase)
+- Under 150 characters total
+- Reference their SPECIFIC point, not just the topic area
+- Sound conversational, like someone who actually read it
+- No flattery like "great insights" or "love this"—just genuine acknowledgment of what they said
+- Don't sound like AI wrote it
 
 Output only the sentence.
 `;
