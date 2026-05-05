@@ -1,52 +1,62 @@
-// 🔧 1. Extract titles
-function extractTitles(experienceBlocks) {
-  const current = experienceBlocks[0]?.textBlock || "";
-  const previous = experienceBlocks[1]?.textBlock || "";
+// ===== 🔧 CONFIG =====
+const DEBUG = true;
 
+// ===== 🔧 1. Extract experience =====
+function extractExperience(experienceBlocks) {
   return {
-    currentTitle: current.split("\n")[0] || "",
-    previousTitle: previous.split("\n")[0] || ""
+    currentCompany:      experienceBlocks[0]?.company || "",
+    currentTitle:        experienceBlocks[0]?.title || "",
+    currentDate:         experienceBlocks[0]?.date || "",
+    currentDescription:  experienceBlocks[0]?.description || "",
+    previousCompany:     experienceBlocks[1]?.company || "",
+    previousTitle:       experienceBlocks[1]?.title || "",
+    previousDescription: experienceBlocks[1]?.description || ""
   };
 }
 
-// 🔧 2. Build prompt
-function buildPrompt({ currentTitle, previousTitle }) {
+// ===== 🔧 2. Prompt builder =====
+function buildPrompt({ currentTitle, currentDescription, previousTitle, currentCompany, previousCompany }) {
   return `
-You are writing a LinkedIn connection request opener.
+#CONTEXT#
+You are generating a single personalized sentence based on a person's LinkedIn roles and company history. You must follow a strict sentence template, select concise company name fragments (omit suffixes like Inc, LLC, Corp), and handle cases where no previous company exists. Use only the provided input fields exactly as given.
 
-Write ONE sentence in this EXACT style:
-"really cool that you have such deep expertise leading [specific functional area]."
+#OBJECTIVE#
+Produce one sentence in the exact structure: "really cool that you have such deep expertise leading XXXX/IN xxxxxx from [previousCompany] to [currentCompany]." Ensure the initial "r" in "really" is lowercase and include a period at the end.
 
-Rules:
-- start with lowercase "really"
-- max 150 characters
-- no "..."
-- sound natural, not robotic
-- extract the FUNCTIONAL EXPERTISE from the roles
+#INSTRUCTIONS#
+1. Derive the focus phrase after "leading" or "in":
+   - Create a concise, natural phrase from DescriptorA, DescriptorB, and DescriptorC that reflects role scope, function, or area. Use lowercased function/area nouns. Combine or choose the most coherent subset; do not repeat company names.
+   - Be specific: CEO/president → "innovation and strategy"; operations roles → "operations"; CTO → "technology and innovation"; product roles → "product"; CFO → "finance and operations". If VP/director but department unclear, say "leading innovation and ops".
+2. Company selection and formatting:
+   - Normalize each company name by removing suffixes: Inc, Inc., LLC, LLC., Ltd, Ltd., Corp, Corp., Co, Co., Company, PLC, GmbH, S.A., S.L., Pvt, Pte, Pty, BV, NV, AB.
+   - If a company name is long, shorten to the first 1–3 significant words.
+   - If PreviousCompany and CurrentCompany are the same after normalization, use the fallback "at [currentCompany]" structure.
+3. Construct the sentence:
+   - Always start with: "really cool that you have such deep expertise".
+   - If PreviousCompany is present and differs from CurrentCompany: " leading [derived phrase] from [previousCompany] to [currentCompany]."
+   - If PreviousCompany is empty or same as CurrentCompany: " leading [derived phrase] at [currentCompany]."
+4. Formatting rules:
+   - Keep natural casing except "really" must be lowercase.
+   - End with a single period. No extra spaces.
 
-Mapping guidance:
-- GTM / growth / sales → "go-to-market and growth"
-- brand / marketing → "brand and marketing strategy"
-- BD → "business development and partnerships"
-- product → "product and platform development"
-- CEO/founder → "strategy and operations"
-- operations → "operations and execution"
+#EXAMPLES#
+- Input: DescriptorA="global product strategy", DescriptorB="enterprise sales", DescriptorC="AI platforms", PreviousCompany="Acme Technologies Inc.", CurrentCompany="NextWave Data LLC"
+  Output: "really cool that you have such deep expertise leading global product strategy and enterprise sales for ai platforms from Acme Technologies to NextWave Data."
+- Input: DescriptorA="customer success", DescriptorB="SaaS operations", DescriptorC="B2B enablement", PreviousCompany="", CurrentCompany="BrightPath Analytics Corp."
+  Output: "really cool that you have such deep expertise leading customer success at BrightPath Analytics."
 
-If both roles are useful:
-→ combine into 1 phrase (e.g. "go-to-market and brand strategy")
+#INPUTS#
+DescriptorA: ${currentTitle}
+DescriptorB: ${currentDescription}
+DescriptorC: ${previousTitle}
+PreviousCompany: ${previousCompany}
+CurrentCompany: ${currentCompany}
 
-If unclear:
-→ default to "strategy and operations"
-
-Input:
-Current role: ${currentTitle}
-Previous role: ${previousTitle}
-
-Output ONLY the sentence.
+Output only the sentence.
 `;
 }
 
-// 🔧 3. Call Gemini
+// ===== 🔧 3. Gemini call =====
 async function callGemini(prompt) {
   const response = await fetch(`${CONFIG.API_URL}?key=${CONFIG.API_KEY}`, {
     method: "POST",
@@ -64,23 +74,30 @@ async function callGemini(prompt) {
 
   const data = await response.json();
 
-  console.log("Gemini response:", data);
+  console.log("🤖 Gemini response:", data);
 
   return data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data);
 }
 
-// 🔧 4. Button click
+// ===== 🔧 4. UI helpers =====
+function setStatus(text) {
+  document.getElementById("status").innerText = text;
+}
+
+function setOutput(text) {
+  document.getElementById("output").innerText = text;
+}
+
+// ===== 🔧 5. Main click handler =====
 document.getElementById("generate").onclick = async () => {
   const statusEl = document.getElementById("status");
-  const outputEl = document.getElementById("output");
 
-  // 🔥 show loading immediately
   let seconds = 0;
-  statusEl.innerText = "Generating... 0s";
+  setStatus("Generating... 0s");
 
   const interval = setInterval(() => {
     seconds++;
-    statusEl.innerText = `Generating... ${seconds}s`;
+    setStatus(`Generating... ${seconds}s`);
   }, 1000);
 
   try {
@@ -90,29 +107,53 @@ document.getElementById("generate").onclick = async () => {
       type: "GET_PROFILE"
     });
 
-    const { currentTitle, previousTitle } = extractTitles(profile.experienceBlocks);
+    console.log("📊 Full profile:", profile);
 
-    const prompt = buildPrompt({ currentTitle, previousTitle });
+    const exp = extractExperience(profile.experienceBlocks);
 
-    let result = await callGemini(prompt);
+    // ===== 🔍 DEBUG MODE =====
+    if (DEBUG) {
+      const generated = await callGemini(buildPrompt(exp));
+      const debugText = [
+        "--- Current ---",
+        `Company: ${exp.currentCompany}`,
+        `Title: ${exp.currentTitle}`,
+        `Time: ${exp.currentDate}`,
+        `Description: ${exp.currentDescription}`,
+        "",
+        "--- Previous ---",
+        `Company: ${exp.previousCompany}`,
+        `Title: ${exp.previousTitle}`,
+        `Description: ${exp.previousDescription}`,
+        "",
+        "--- Generated ---",
+        generated.trim()
+      ].join("\n");
+      setOutput(debugText);
+      clearInterval(interval);
+      setStatus("Debug mode");
+      return;
+    }
 
-    // cleanup
+    // ===== 🧠 NORMAL MODE =====
+    let result = await callGemini(buildPrompt(exp));
+
     result = result
       .replace(/^"|"$/g, "")
       .replace(/\n/g, " ")
       .trim();
 
-    outputEl.innerText = result;
+    setOutput(result);
 
-    // auto copy
     navigator.clipboard.writeText(result);
 
-  } catch (err) {
-    outputEl.innerText = "Error generating message";
-    console.error(err);
-  }
+    clearInterval(interval);
+    setStatus("Copied ✓");
 
-  // 🔥 stop timer
-  clearInterval(interval);
-  statusEl.innerText = "Done";
+  } catch (err) {
+    console.error(err);
+    clearInterval(interval);
+    setOutput("Error generating message");
+    setStatus("Error");
+  }
 };

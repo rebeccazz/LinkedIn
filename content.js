@@ -2,43 +2,55 @@
 
 // Grab all experience <li> blocks as raw text
 function getExperienceBlocks() {
-  // 1. Find the Experience section more robustly
   const sections = Array.from(document.querySelectorAll("section"));
-  const expSection = sections.find(sec => {
-    const anchor = sec.querySelector('div[id="experience"]');
-    return anchor || sec.innerText.includes("Experience");
-  });
+  const expSection = sections.find(sec => sec.innerText.includes("Experience"));
 
-  if (!expSection) return [];
+  if (!expSection) {
+    console.log("❌ No Experience section found");
+    return [];
+  }
 
-  // 2. Target the individual list items
-  const items = expSection.querySelectorAll("li.artdeco-list__item");
-  
-  return Array.from(items).map(li => {
-    // LinkedIn often hides the 'Company Name' label for screen readers
-    // We want the text immediately following or inside the bold span
-    const companyElement = li.querySelector('.t-14.t-normal span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-    const titleElement = li.querySelector('.t-bold span[aria-hidden="true"]');
-    
-    // If it's a nested role (multiple roles at one company), 
-    // the company name is usually in a parent div.
-    let company = companyElement?.innerText || "Unknown Company";
-    let title = titleElement?.innerText || "Unknown Title";
+  const entityItems = Array.from(
+    expSection.querySelectorAll('[componentkey^="entity-collection-item"]')
+  );
 
-    // Logic for "Multiple Roles at One Company" blocks
-    if (li.querySelector('.pvs-entity__path-node')) {
-       // This is a sub-role; we'd need to traverse up to find the header
-       // For a simple script, we can often find it in the textBlock
-       const rawText = li.innerText.split('\n');
-       company = rawText[0]; // Usually the first line in these blocks
+  const results = [];
+
+  for (const item of entityItems) {
+    const companyImg = item.querySelector('img[alt]');
+    const company = companyImg?.alt?.replace(/ logo$/i, '').trim() || '';
+    if (!company) continue;
+
+    let title = '', date = '', description = '';
+
+    const list = item.querySelector('ul');
+    if (list) {
+      // Grouped roles — most recent is first <li>
+      const firstLi = list.querySelector('li');
+      if (firstLi) {
+        const paras = Array.from(firstLi.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+        title = paras[0] || '';
+        date = paras.find(t => t.match(/\d{4}|Present/)) || '';
+        description = firstLi.querySelector('[data-testid="expandable-text-box"]')?.innerText?.trim() || '';
+      }
+    } else {
+      // Single role
+      const paras = Array.from(item.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+      const nonCompany = paras.filter(t => t !== company && !t.match(/^\d+\s*(mos|yrs)/i));
+      title = nonCompany[0] || '';
+      date = paras.find(t => t.match(/\d{4}|Present/)) || '';
+      description = item.querySelector('[data-testid="expandable-text-box"]')?.innerText?.trim() || '';
     }
 
-    return {
-      company: company.replace(/ · Full-time| · Part-time/g, '').trim(),
-      title: title.trim()
-    };
-  });
+    results.push({ company, title, date, description });
+    if (results.length === 2) break;
+  }
+
+  console.log("✅ Final experience results:", results);
+  return results;
 }
+
+
 // Main function: collect profile data
 function getProfileData() {
   const name = document.querySelector("h1")?.innerText || null;
@@ -51,6 +63,7 @@ function getProfileData() {
     name,
     title,
     experienceBlocks,
+    debugRawExperience: experienceBlocks.map(e => e.raw)
     //fullPageText
   };
 }
