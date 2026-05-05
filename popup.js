@@ -40,13 +40,22 @@ function updateCharCount() {
   const totalOpt1 = option1Base.length + (closingText ? 1 + closingText.length : 0);
   const totalOpt2 = option2Base.length + (closingText ? 1 + closingText.length : 0);
 
-  const charCountEl = document.getElementById("char-count");
-  charCountEl.innerText = `${totalOpt1} / 300 chars (Option 1) | ${totalOpt2} / 300 chars (Option 2)`;
+  const opt1CountEl = document.getElementById("option1-count");
+  const opt2CountEl = document.getElementById("option2-count");
 
-  if (totalOpt1 > 300 || totalOpt2 > 300) {
-    charCountEl.style.color = "red";
+  opt1CountEl.innerText = `${totalOpt1} / 300`;
+  opt2CountEl.innerText = `${totalOpt2} / 300`;
+
+  if (totalOpt1 > 300) {
+    opt1CountEl.classList.add("warning");
   } else {
-    charCountEl.style.color = "gray";
+    opt1CountEl.classList.remove("warning");
+  }
+
+  if (totalOpt2 > 300) {
+    opt2CountEl.classList.add("warning");
+  } else {
+    opt2CountEl.classList.remove("warning");
   }
 }
 
@@ -169,18 +178,20 @@ function setOutput(text) {
 }
 
 // ===== 🔧 5. Copy button handlers =====
-document.getElementById("option1-copy").onclick = () => {
-  const fullText = document.getElementById("option1-output").innerText;
+const copyToClipboard = (btn) => {
+  const fullText = btn.previousElementSibling?.innerText || "";
   navigator.clipboard.writeText(fullText);
-  setStatus("Copied ✓");
-  setTimeout(() => setStatus(""), 2000);
+
+  btn.classList.add("copied");
+  setTimeout(() => btn.classList.remove("copied"), 2000);
 };
 
-document.getElementById("option2-copy").onclick = () => {
-  const fullText = document.getElementById("option2-output").innerText;
-  navigator.clipboard.writeText(fullText);
-  setStatus("Copied ✓");
-  setTimeout(() => setStatus(""), 2000);
+document.getElementById("option1-copy").onclick = function() {
+  copyToClipboard(this);
+};
+
+document.getElementById("option2-copy").onclick = function() {
+  copyToClipboard(this);
 };
 
 // ===== 🔧 6. Main click handler =====
@@ -244,8 +255,11 @@ document.getElementById("generate").onclick = async () => {
   } catch (err) {
     console.error(err);
     clearInterval(interval);
-    document.getElementById("option1-output").innerText = "Error generating message";
-    document.getElementById("option2-output").innerText = "Error";
+    const errorMsg = err.message.includes("Receiving end does not exist")
+      ? "Open a LinkedIn profile page first"
+      : "Error generating message";
+    document.getElementById("option1-output").innerText = errorMsg;
+    document.getElementById("option2-output").innerText = "";
     setStatus("Error");
   }
 };
