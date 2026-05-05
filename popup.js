@@ -142,7 +142,7 @@ Output only the sentence. Must be under 100 chars.
 
 // ===== 🔧 3. Backend API call =====
 async function callGemini(prompt) {
-  const response = await fetch("https://linkedin-copilot.vercel.app/api/groq", {
+  const response = await fetch("https://linked-in-nu-virid.vercel.app/api/groq", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
