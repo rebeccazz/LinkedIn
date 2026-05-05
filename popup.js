@@ -140,32 +140,25 @@ Output only the sentence. Must be under 100 chars.
 `;
 }
 
-// ===== 🔧 3. Groq API call =====
+// ===== 🔧 3. Backend API call =====
 async function callGemini(prompt) {
-  const response = await fetch(CONFIG.API_URL, {
+  const response = await fetch("https://linkedin-copilot.vercel.app/api/groq", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${CONFIG.API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: CONFIG.MODEL,
-      messages: [
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 200
-    })
+    body: JSON.stringify({ prompt })
   });
 
   const data = await response.json();
 
-  console.log("🤖 Groq response:", data);
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to generate message");
+  }
 
-  return data.choices?.[0]?.message?.content || JSON.stringify(data);
+  console.log("🤖 API response:", data);
+
+  return data.content;
 }
 
 // ===== 🔧 4. UI helpers =====
@@ -255,9 +248,12 @@ document.getElementById("generate").onclick = async () => {
   } catch (err) {
     console.error(err);
     clearInterval(interval);
-    const errorMsg = err.message.includes("Receiving end does not exist")
-      ? "Open a LinkedIn profile page first"
-      : "Error generating message";
+    let errorMsg = "Error generating message";
+
+    if (err.message.includes("Receiving end does not exist")) {
+      errorMsg = "Open a LinkedIn profile page first";
+    }
+
     document.getElementById("option1-output").innerText = errorMsg;
     document.getElementById("option2-output").innerText = "";
     setStatus("Error");
