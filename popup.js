@@ -108,51 +108,55 @@ Output only the sentence.
 // ===== 🔧 2b. Prompt builder based on client's posts =====
 function buildInsightPrompt(postText) {
   return `
-You are writing a genuine, personalized LinkedIn connection message opener that shows you actually read someone's post.
+Write a SHORT, natural LinkedIn opener that references someone's post. You are a real person who read it.
 
 Post content: ${postText}
 
-Your task:
-1. Identify the core insight or main point they're making (not the generic topic, but what specifically they're saying)
-2. Rephrase their main idea back to them in your own words—brief, but showing you understood it
-3. Write ONE sentence that starts with "saw your post" or "read your post" and references their specific point
-
-Example good response: "saw your post about remote work and your point about async communication is spot-on for distributed teams"
-Example bad response: "saw your post about remote work and it was really great" (too generic, doesn't show understanding)
-
 Rules:
-- Start with "saw your post" or "read your post" (lowercase)
-- Under 150 characters total
-- Reference their SPECIFIC point, not just the topic area
-- Sound conversational, like someone who actually read it
-- No flattery like "great insights" or "love this"—just genuine acknowledgment of what they said
-- Don't sound like AI wrote it
+- Start with "saw your post" or "read your post"
+- MAX 100 characters (keep it tight and punchy)
+- Reference ONE specific thing they said—not the general topic
+- Sound like a regular person, not marketing copy
+- Be direct. No "amazing", "love", "great insights"—just acknowledge what they said
+- If you can naturally disagree or add a different angle, that's better than agreement
+- Don't use exclamation marks
 
-Output only the sentence.
+Examples:
+GOOD: "saw your post about quiet quitting—agree on the burnout part but think companies don't care enough to change"
+GOOD: "read your post on asynchronous work. dealing with the same timezone issues at our company"
+BAD: "love your insights on remote work!" (generic, sounds like AI)
+BAD: "saw your amazing post about productivity tips" (too long, too flattery)
+
+Output only the sentence. Must be under 100 chars.
 `;
 }
 
-// ===== 🔧 3. Gemini call =====
+// ===== 🔧 3. Groq API call =====
 async function callGemini(prompt) {
-  const response = await fetch(`${CONFIG.API_URL}?key=${CONFIG.API_KEY}`, {
+  const response = await fetch(CONFIG.API_URL, {
     method: "POST",
     headers: {
+      "Authorization": `Bearer ${CONFIG.API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      contents: [
+      model: CONFIG.MODEL,
+      messages: [
         {
-          parts: [{ text: prompt }]
+          role: "user",
+          content: prompt
         }
-      ]
+      ],
+      temperature: 0.7,
+      max_tokens: 200
     })
   });
 
   const data = await response.json();
 
-  console.log("🤖 Gemini response:", data);
+  console.log("🤖 Groq response:", data);
 
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data);
+  return data.choices?.[0]?.message?.content || JSON.stringify(data);
 }
 
 // ===== 🔧 4. UI helpers =====
