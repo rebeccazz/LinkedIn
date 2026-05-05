@@ -1,5 +1,5 @@
 // ===== 🔧 CONFIG =====
-// Load closing message from storage on popup open
+// Load custom message from storage on popup open
 chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
   if (closingMessage) {
     document.getElementById("closing-message").value = closingMessage;
@@ -7,24 +7,38 @@ chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
   }
 });
 
-// Auto-save closing message (debounced)
+// Auto-save custom message (debounced) and update display
 let saveTimeout;
 document.getElementById("closing-message").addEventListener("input", () => {
   updateCharCount();
+  updateOptionDisplay();
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(() => {
     chrome.storage.local.set({ closingMessage: document.getElementById("closing-message").value });
   }, 500);
 });
 
+// Update display with closing message appended
+function updateOptionDisplay() {
+  const closingText = document.getElementById("closing-message").value.trim();
+  const option1Base = document.getElementById("option1-output").getAttribute("data-base-text") || "";
+  const option2Base = document.getElementById("option2-output").getAttribute("data-base-text") || "";
+
+  const option1Full = closingText ? `${option1Base} ${closingText}` : option1Base;
+  const option2Full = closingText ? `${option2Base} ${closingText}` : option2Base;
+
+  document.getElementById("option1-output").innerText = option1Full;
+  document.getElementById("option2-output").innerText = option2Full;
+}
+
 // Update character count
 function updateCharCount() {
   const closingText = document.getElementById("closing-message").value;
-  const option1Text = document.getElementById("option1-output").innerText || "";
-  const option2Text = document.getElementById("option2-output").innerText || "";
+  const option1Base = document.getElementById("option1-output").getAttribute("data-base-text") || "";
+  const option2Base = document.getElementById("option2-output").getAttribute("data-base-text") || "";
 
-  const totalOpt1 = option1Text.length + (closingText ? 1 + closingText.length : 0);
-  const totalOpt2 = option2Text.length + (closingText ? 1 + closingText.length : 0);
+  const totalOpt1 = option1Base.length + (closingText ? 1 + closingText.length : 0);
+  const totalOpt2 = option2Base.length + (closingText ? 1 + closingText.length : 0);
 
   const charCountEl = document.getElementById("char-count");
   charCountEl.innerText = `${totalOpt1} / 300 chars (Option 1) | ${totalOpt2} / 300 chars (Option 2)`;
@@ -152,18 +166,14 @@ function setOutput(text) {
 
 // ===== 🔧 5. Copy button handlers =====
 document.getElementById("option1-copy").onclick = () => {
-  const openerText = document.getElementById("option1-output").innerText;
-  const closingText = document.getElementById("closing-message").value.trim();
-  const fullText = closingText ? `${openerText} ${closingText}` : openerText;
+  const fullText = document.getElementById("option1-output").innerText;
   navigator.clipboard.writeText(fullText);
   setStatus("Copied ✓");
   setTimeout(() => setStatus(""), 2000);
 };
 
 document.getElementById("option2-copy").onclick = () => {
-  const openerText = document.getElementById("option2-output").innerText;
-  const closingText = document.getElementById("closing-message").value.trim();
-  const fullText = closingText ? `${openerText} ${closingText}` : openerText;
+  const fullText = document.getElementById("option2-output").innerText;
   navigator.clipboard.writeText(fullText);
   setStatus("Copied ✓");
   setTimeout(() => setStatus(""), 2000);
@@ -200,7 +210,8 @@ document.getElementById("generate").onclick = async () => {
       .trim();
     option1Text = `Hi ${firstName}, ${option1Text}`;
 
-    document.getElementById("option1-output").innerText = option1Text;
+    document.getElementById("option1-output").setAttribute("data-base-text", option1Text);
+    document.getElementById("option1-output").style.display = "inline-block";
     document.getElementById("option1-copy").style.display = "inline-block";
 
     // Generate Option 2 (recent post/comment)
@@ -217,9 +228,11 @@ document.getElementById("generate").onclick = async () => {
       document.getElementById("option2-copy").style.display = "inline-block";
     }
 
-    document.getElementById("option2-output").innerText = option2Text;
+    document.getElementById("option2-output").setAttribute("data-base-text", option2Text);
+    document.getElementById("option2-output").style.display = "inline-block";
 
     updateCharCount();
+    updateOptionDisplay();
 
     clearInterval(interval);
     setStatus("Done");
