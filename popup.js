@@ -1,4 +1,40 @@
 // ===== 🔧 CONFIG =====
+// Load closing message from storage on popup open
+chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
+  if (closingMessage) {
+    document.getElementById("closing-message").value = closingMessage;
+    updateCharCount();
+  }
+});
+
+// Auto-save closing message (debounced)
+let saveTimeout;
+document.getElementById("closing-message").addEventListener("input", () => {
+  updateCharCount();
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    chrome.storage.local.set({ closingMessage: document.getElementById("closing-message").value });
+  }, 500);
+});
+
+// Update character count
+function updateCharCount() {
+  const closingText = document.getElementById("closing-message").value;
+  const option1Text = document.getElementById("option1-output").innerText || "";
+  const option2Text = document.getElementById("option2-output").innerText || "";
+
+  const totalOpt1 = option1Text.length + (closingText ? 1 + closingText.length : 0);
+  const totalOpt2 = option2Text.length + (closingText ? 1 + closingText.length : 0);
+
+  const charCountEl = document.getElementById("char-count");
+  charCountEl.innerText = `${totalOpt1} / 300 chars (Option 1) | ${totalOpt2} / 300 chars (Option 2)`;
+
+  if (totalOpt1 > 300 || totalOpt2 > 300) {
+    charCountEl.style.color = "red";
+  } else {
+    charCountEl.style.color = "gray";
+  }
+}
 
 // ===== 🔧 1. Extract experience =====
 function extractExperience(experienceBlocks) {
@@ -14,7 +50,7 @@ function extractExperience(experienceBlocks) {
 }
 
 // ===== 🔧 2. Prompt builder for experience =====
-function buildPrompt({ currentTitle, currentDescription, previousTitle, currentCompany, previousCompany }) {
+function buildExperiencePrompt({ currentTitle, currentDescription, previousTitle, currentCompany, previousCompany }) {
   return `
 #CONTEXT#
 You are generating a single personalized sentence based on a person's LinkedIn roles and company history. You must follow a strict sentence template, select concise company name fragments (omit suffixes like Inc, LLC, Corp), and handle cases where no previous company exists. Use only the provided input fields exactly as given.
@@ -56,7 +92,7 @@ Output only the sentence.
 }
 
 // ===== 🔧 2b. Prompt builder for posts =====
-function buildPostPrompt(postText) {
+function buildInsightPrompt(postText) {
   return `
 Write ONE LinkedIn opener sentence that references this post or comment as insightful.
 
@@ -106,15 +142,19 @@ function setOutput(text) {
 
 // ===== 🔧 5. Copy button handlers =====
 document.getElementById("option1-copy").onclick = () => {
-  const text = document.getElementById("option1-output").innerText;
-  navigator.clipboard.writeText(text);
+  const openerText = document.getElementById("option1-output").innerText;
+  const closingText = document.getElementById("closing-message").value.trim();
+  const fullText = closingText ? `${openerText} ${closingText}` : openerText;
+  navigator.clipboard.writeText(fullText);
   setStatus("Copied ✓");
   setTimeout(() => setStatus(""), 2000);
 };
 
 document.getElementById("option2-copy").onclick = () => {
-  const text = document.getElementById("option2-output").innerText;
-  navigator.clipboard.writeText(text);
+  const openerText = document.getElementById("option2-output").innerText;
+  const closingText = document.getElementById("closing-message").value.trim();
+  const fullText = closingText ? `${openerText} ${closingText}` : openerText;
+  navigator.clipboard.writeText(fullText);
   setStatus("Copied ✓");
   setTimeout(() => setStatus(""), 2000);
 };
@@ -141,7 +181,7 @@ document.getElementById("generate").onclick = async () => {
     const exp = extractExperience(profile.experienceBlocks);
 
     // Generate Option 1 (experience)
-    const option1Prompt = buildPrompt(exp);
+    const option1Prompt = buildExperiencePrompt(exp);
     const option1Result = await callGemini(option1Prompt);
     let option1Text = option1Result
       .replace(/^"|"$/g, "")
@@ -152,10 +192,10 @@ document.getElementById("generate").onclick = async () => {
     document.getElementById("option1-copy").style.display = "inline-block";
 
     // Generate Option 2 (recent post/comment)
-    let option2Text = "No posts or comments found";
+    let option2Text = "No posts or comments within 3 months found";
     if (profile.recentActivity && profile.recentActivity.length > 0) {
       const firstActivity = profile.recentActivity[0];
-      const option2Prompt = buildPostPrompt(firstActivity.text);
+      const option2Prompt = buildInsightPrompt(firstActivity.text);
       const option2Result = await callGemini(option2Prompt);
       option2Text = option2Result
         .replace(/^"|"$/g, "")
@@ -165,6 +205,8 @@ document.getElementById("generate").onclick = async () => {
     }
 
     document.getElementById("option2-output").innerText = option2Text;
+
+    updateCharCount();
 
     clearInterval(interval);
     setStatus("Done");
