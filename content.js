@@ -51,20 +51,84 @@ function getExperienceBlocks() {
 }
 
 
+function getRecentActivity() {
+  const sections = Array.from(document.querySelectorAll("section"));
+  const postsSection = sections.find(sec => sec.innerText.includes("Posts") && sec.innerText.includes("Comments"));
+
+  if (!postsSection) {
+    console.log("❌ No Posts section found");
+    return [];
+  }
+
+  const lines = postsSection.innerText.split("\n").map(l => l.trim()).filter(Boolean);
+  const results = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Find date line (e.g., "2w •", "1mo •")
+    if (line.match(/^\d+[dwmy]\s*•/i)) {
+      const dateMatch = line.match(/(\d+)\s*([dwmy])/i);
+      if (!dateMatch) continue;
+
+      const [_, amount, unit] = dateMatch;
+      const unitLower = unit.toLowerCase();
+
+      let isWithin3Months = false;
+      if (unitLower === "d" || unitLower === "w") {
+        isWithin3Months = true;
+      } else if (unitLower === "m" || unitLower === "mo") {
+        isWithin3Months = parseInt(amount) <= 3;
+      }
+
+      if (!isWithin3Months) continue;
+
+      // Collect post text from next lines until we hit another date, "View analytics", or end
+      let postText = [];
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextLine = lines[j];
+
+        // Stop if we hit another date, analytics, or section headers
+        if (nextLine.match(/^\d+[dwmy]\s*•/i) ||
+            nextLine.includes("View analytics") ||
+            nextLine === "Comments" ||
+            nextLine === "Images" ||
+            nextLine === "Repost" ||
+            nextLine === "Like" ||
+            nextLine.match(/^\d+\s*(impressions|reactions|comments)/i)) {
+          break;
+        }
+
+        if (nextLine && nextLine.length > 5 && !nextLine.includes("You")) {
+          postText.push(nextLine);
+        }
+      }
+
+      const combined = postText.join(" ").trim().substring(0, 300);
+      if (combined && combined.length > 20) {
+        results.push({ text: combined, type: "post" });
+        if (results.length === 3) break;
+      }
+    }
+  }
+
+  console.log("✅ Recent activity results:", results);
+  return results;
+}
+
 // Main function: collect profile data
 function getProfileData() {
   const name = document.querySelector("h1")?.innerText || null;
   const title = document.querySelector(".text-body-medium")?.innerText || null;
 
   const experienceBlocks = getExperienceBlocks();
-  //const fullPageText = getPageText();
+  const recentActivity = getRecentActivity();
 
   return {
     name,
     title,
     experienceBlocks,
-    debugRawExperience: experienceBlocks.map(e => e.raw)
-    //fullPageText
+    recentActivity
   };
 }
 

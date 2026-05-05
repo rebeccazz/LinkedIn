@@ -1,5 +1,4 @@
 // ===== 🔧 CONFIG =====
-const DEBUG = true;
 
 // ===== 🔧 1. Extract experience =====
 function extractExperience(experienceBlocks) {
@@ -14,7 +13,7 @@ function extractExperience(experienceBlocks) {
   };
 }
 
-// ===== 🔧 2. Prompt builder =====
+// ===== 🔧 2. Prompt builder for experience =====
 function buildPrompt({ currentTitle, currentDescription, previousTitle, currentCompany, previousCompany }) {
   return `
 #CONTEXT#
@@ -56,6 +55,23 @@ Output only the sentence.
 `;
 }
 
+// ===== 🔧 2b. Prompt builder for posts =====
+function buildPostPrompt(postText) {
+  return `
+Write ONE LinkedIn opener sentence that references this post or comment as insightful.
+
+Rules:
+- Start with "really" (lowercase)
+- Under 150 characters
+- Reference something specific from the content
+- Sound natural, not generic
+
+Post content: ${postText}
+
+Output only the sentence.
+`;
+}
+
 // ===== 🔧 3. Gemini call =====
 async function callGemini(prompt) {
   const response = await fetch(`${CONFIG.API_URL}?key=${CONFIG.API_KEY}`, {
@@ -88,10 +104,23 @@ function setOutput(text) {
   document.getElementById("output").innerText = text;
 }
 
-// ===== 🔧 5. Main click handler =====
-document.getElementById("generate").onclick = async () => {
-  const statusEl = document.getElementById("status");
+// ===== 🔧 5. Copy button handlers =====
+document.getElementById("option1-copy").onclick = () => {
+  const text = document.getElementById("option1-output").innerText;
+  navigator.clipboard.writeText(text);
+  setStatus("Copied ✓");
+  setTimeout(() => setStatus(""), 2000);
+};
 
+document.getElementById("option2-copy").onclick = () => {
+  const text = document.getElementById("option2-output").innerText;
+  navigator.clipboard.writeText(text);
+  setStatus("Copied ✓");
+  setTimeout(() => setStatus(""), 2000);
+};
+
+// ===== 🔧 6. Main click handler =====
+document.getElementById("generate").onclick = async () => {
   let seconds = 0;
   setStatus("Generating... 0s");
 
@@ -111,49 +140,40 @@ document.getElementById("generate").onclick = async () => {
 
     const exp = extractExperience(profile.experienceBlocks);
 
-    // ===== 🔍 DEBUG MODE =====
-    if (DEBUG) {
-      const generated = await callGemini(buildPrompt(exp));
-      const debugText = [
-        "--- Current ---",
-        `Company: ${exp.currentCompany}`,
-        `Title: ${exp.currentTitle}`,
-        `Time: ${exp.currentDate}`,
-        `Description: ${exp.currentDescription}`,
-        "",
-        "--- Previous ---",
-        `Company: ${exp.previousCompany}`,
-        `Title: ${exp.previousTitle}`,
-        `Description: ${exp.previousDescription}`,
-        "",
-        "--- Generated ---",
-        generated.trim()
-      ].join("\n");
-      setOutput(debugText);
-      clearInterval(interval);
-      setStatus("Debug mode");
-      return;
-    }
-
-    // ===== 🧠 NORMAL MODE =====
-    let result = await callGemini(buildPrompt(exp));
-
-    result = result
+    // Generate Option 1 (experience)
+    const option1Prompt = buildPrompt(exp);
+    const option1Result = await callGemini(option1Prompt);
+    let option1Text = option1Result
       .replace(/^"|"$/g, "")
       .replace(/\n/g, " ")
       .trim();
 
-    setOutput(result);
+    document.getElementById("option1-output").innerText = option1Text;
+    document.getElementById("option1-copy").style.display = "inline-block";
 
-    navigator.clipboard.writeText(result);
+    // Generate Option 2 (recent post/comment)
+    let option2Text = "No posts or comments found";
+    if (profile.recentActivity && profile.recentActivity.length > 0) {
+      const firstActivity = profile.recentActivity[0];
+      const option2Prompt = buildPostPrompt(firstActivity.text);
+      const option2Result = await callGemini(option2Prompt);
+      option2Text = option2Result
+        .replace(/^"|"$/g, "")
+        .replace(/\n/g, " ")
+        .trim();
+      document.getElementById("option2-copy").style.display = "inline-block";
+    }
+
+    document.getElementById("option2-output").innerText = option2Text;
 
     clearInterval(interval);
-    setStatus("Copied ✓");
+    setStatus("Done");
 
   } catch (err) {
     console.error(err);
     clearInterval(interval);
-    setOutput("Error generating message");
+    document.getElementById("option1-output").innerText = "Error generating message";
+    document.getElementById("option2-output").innerText = "Error";
     setStatus("Error");
   }
 };
