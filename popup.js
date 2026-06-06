@@ -132,7 +132,8 @@ document.getElementById("option2-copy").onclick = function() {
 };
 
 // ===== 🔧 6. Personalization handler =====
-document.getElementById("generate-personalization").onclick = async () => {
+const personalizationBtn = document.getElementById("generate-personalization");
+personalizationBtn.onclick = async () => {
   const statusEl = document.getElementById("personalization-status");
   const outputEl = document.getElementById("personalization-output");
   const copyBtn = document.getElementById("personalization-copy");
@@ -142,6 +143,8 @@ document.getElementById("generate-personalization").onclick = async () => {
     return;
   }
 
+  // Disable button during generation
+  personalizationBtn.disabled = true;
   statusEl.innerText = "Generating...";
   outputEl.style.display = "none";
   copyBtn.style.display = "none";
@@ -177,7 +180,7 @@ document.getElementById("generate-personalization").onclick = async () => {
     outputEl.innerText = opener;
     outputEl.style.display = "block";
     copyBtn.style.display = "flex";
-    statusEl.innerText = "Done";
+    statusEl.innerText = "✓ Click button again for a new opener";
 
   } catch (err) {
     console.error("❌ Personalization error:", err);
@@ -199,7 +202,11 @@ document.getElementById("generate-personalization").onclick = async () => {
     outputEl.innerText = errorMsg;
     outputEl.style.display = "block";
     copyBtn.style.display = "none";
-    statusEl.innerText = "Error";
+    statusEl.innerText = "Error - try again";
+
+  } finally {
+    // Re-enable button so user can click again
+    personalizationBtn.disabled = false;
   }
 };
 
