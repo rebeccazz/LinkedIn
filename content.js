@@ -212,7 +212,7 @@ function getProfileData() {
 // Extended profile data for personalization
 function getProfileDataForPersonalization() {
   const basicData = getProfileData();
-  const experienceBlocks = basicData.experienceBlocks;
+  const experienceBlocks = basicData.experienceBlocks || [];
   const education = getEducation();
   const volunteerWork = getVolunteerWork();
   const yearsInIndustry = calculateYearsInIndustry(experienceBlocks);
@@ -220,16 +220,28 @@ function getProfileDataForPersonalization() {
   // Extract name parts
   let firstName = '', lastName = '';
   if (basicData.name) {
-    const nameParts = basicData.name.split(' ');
+    const nameParts = basicData.name.trim().split(/\s+/);
     firstName = nameParts[0] || '';
     lastName = nameParts.slice(1).join(' ') || '';
   }
 
-  // Current and previous roles
-  const currentRole = experienceBlocks[0] ? experienceBlocks[0].title : '';
-  const currentCompany = experienceBlocks[0] ? experienceBlocks[0].company : '';
-  const previousRole = experienceBlocks[1] ? experienceBlocks[1].title : '';
-  const previousCompany = experienceBlocks[1] ? experienceBlocks[1].company : '';
+  // Current and previous roles - make sure they exist
+  const currentRole = (experienceBlocks[0]?.title || '').trim();
+  const currentCompany = (experienceBlocks[0]?.company || '').trim();
+  const previousRole = (experienceBlocks[1]?.title || '').trim();
+  const previousCompany = (experienceBlocks[1]?.company || '').trim();
+
+  console.log("✅ Profile data for personalization:", {
+    firstName,
+    lastName,
+    currentRole,
+    currentCompany,
+    previousRole,
+    previousCompany,
+    yearsInIndustry,
+    education,
+    volunteerWork
+  });
 
   return {
     firstName,

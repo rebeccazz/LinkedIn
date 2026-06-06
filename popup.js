@@ -137,6 +137,11 @@ document.getElementById("generate-personalization").onclick = async () => {
   const outputEl = document.getElementById("personalization-output");
   const copyBtn = document.getElementById("personalization-copy");
 
+  if (!statusEl || !outputEl || !copyBtn) {
+    console.error("❌ Personalization elements not found in DOM");
+    return;
+  }
+
   statusEl.innerText = "Generating...";
   outputEl.style.display = "none";
   copyBtn.style.display = "none";
