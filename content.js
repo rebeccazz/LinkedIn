@@ -213,37 +213,26 @@ function getProfileData() {
 function getProfileDataForPersonalization() {
   const basicData = getProfileData();
   const experienceBlocks = basicData.experienceBlocks || [];
+
+  // Extract name parts - with fallback
+  let firstName = 'there', lastName = '';
+  if (basicData.name) {
+    const nameParts = basicData.name.trim().split(/\s+/);
+    firstName = nameParts[0] || 'there';
+    lastName = nameParts.slice(1).join(' ') || '';
+  }
+
+  // Get current and previous roles - MUST have at least current
+  const currentRole = (experienceBlocks[0]?.title || 'Professional').trim();
+  const currentCompany = (experienceBlocks[0]?.company || 'Current Company').trim();
+  const previousRole = (experienceBlocks[1]?.title || '').trim();
+  const previousCompany = (experienceBlocks[1]?.company || '').trim();
+
   const education = getEducation();
   const volunteerWork = getVolunteerWork();
   const yearsInIndustry = calculateYearsInIndustry(experienceBlocks);
 
-  // Extract name parts
-  let firstName = '', lastName = '';
-  if (basicData.name) {
-    const nameParts = basicData.name.trim().split(/\s+/);
-    firstName = nameParts[0] || '';
-    lastName = nameParts.slice(1).join(' ') || '';
-  }
-
-  // Current and previous roles - make sure they exist
-  const currentRole = (experienceBlocks[0]?.title || '').trim();
-  const currentCompany = (experienceBlocks[0]?.company || '').trim();
-  const previousRole = (experienceBlocks[1]?.title || '').trim();
-  const previousCompany = (experienceBlocks[1]?.company || '').trim();
-
-  console.log("✅ Profile data for personalization:", {
-    firstName,
-    lastName,
-    currentRole,
-    currentCompany,
-    previousRole,
-    previousCompany,
-    yearsInIndustry,
-    education,
-    volunteerWork
-  });
-
-  return {
+  const profileData = {
     firstName,
     lastName,
     currentRole,
@@ -256,6 +245,10 @@ function getProfileDataForPersonalization() {
     allExperienceBlocks: experienceBlocks,
     recentActivity: basicData.recentActivity
   };
+
+  console.log("✅ Profile data for personalization:", profileData);
+
+  return profileData;
 }
 
 // Listen for messages from popup.js
