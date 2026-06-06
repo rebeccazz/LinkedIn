@@ -5,23 +5,24 @@ function buildExperiencePrompt({ currentTitle, currentDescription, previousTitle
 You are generating a single personalized sentence based on a person's LinkedIn roles and company history. You must follow a strict sentence template, select concise company name fragments (omit suffixes like Inc, LLC, Corp), and handle cases where no previous company exists. Use only the provided input fields exactly as given.
 
 #OBJECTIVE#
-Produce one sentence in the exact structure: "really cool that you have such deep expertise leading XXXX/IN xxxxxx from [previousCompany] to [currentCompany]." Ensure the initial "r" in "really" is lowercase and include a period at the end.
+Generate EXACTLY this sentence structure (do not deviate):
+"really cool that you have such deep expertise leading [PHRASE] from [PREV] to [CURRENT]."
+OR if no previous company:
+"really cool that you have such deep expertise leading [PHRASE] at [CURRENT]."
 
-#INSTRUCTIONS#
-1. Derive the focus phrase after "leading" or "in":
-   - Create a concise, natural phrase from DescriptorA, DescriptorB, and DescriptorC that reflects role scope, function, or area. Use lowercased function/area nouns. Combine or choose the most coherent subset; do not repeat company names.
-   - Be specific: CEO/president → "innovation and strategy"; operations roles → "operations"; CTO → "technology and innovation"; product roles → "product"; CFO → "finance and operations". If VP/director but department unclear, say "leading innovation and ops".
-2. Company selection and formatting:
-   - Normalize each company name by removing suffixes: Inc, Inc., LLC, LLC., Ltd, Ltd., Corp, Corp., Co, Co., Company, PLC, GmbH, S.A., S.L., Pvt, Pte, Pty, BV, NV, AB.
-   - If a company name is long, shorten to the first 1–3 significant words.
-   - If PreviousCompany and CurrentCompany are the same after normalization, use the fallback "at [currentCompany]" structure.
-3. Construct the sentence:
-   - Always start with: "really cool that you have such deep expertise".
-   - If PreviousCompany is present and differs from CurrentCompany: " leading [derived phrase] from [previousCompany] to [currentCompany]."
-   - If PreviousCompany is empty or same as CurrentCompany: " leading [derived phrase] at [currentCompany]."
-4. Formatting rules:
-   - Keep natural casing except "really" must be lowercase.
-   - End with a single period. No extra spaces.
+#CRITICAL RULES - FOLLOW EXACTLY:
+1. START: "really cool that you have such deep expertise leading" (lowercase r, always use this phrase)
+2. PHRASE (after "leading"):
+   - Combine DescriptorA, DescriptorB, DescriptorC into ONE natural phrase
+   - Example inputs: Title="VP Sales", Desc="enterprise software", PrevTitle="CTO"
+   - Example output phrase: "enterprise software sales strategy"
+   - Be concise, use lowercase nouns, don't repeat company names
+3. COMPANIES:
+   - Remove suffixes: Inc, LLC, Ltd, Corp, Co, Company, PLC, etc.
+   - Shorten long names to 1-3 words
+   - If same company: use "at [company]" format (not "from X to X")
+4. END: period (.) - single period only
+5. NEVER use "background" - ALWAYS use "expertise leading [phrase]"
 
 #EXAMPLES#
 - Input: DescriptorA="global product strategy", DescriptorB="enterprise sales", DescriptorC="AI platforms", PreviousCompany="Acme Technologies Inc.", CurrentCompany="NextWave Data LLC"
