@@ -130,17 +130,20 @@ CRITICAL RULES:
 - Keep to 1-2 short sentences max.
 - Start with "Hi ${firstName}," and end with a period.
 - NEVER include filler like "happy to connect," "would love to," etc.
-- React naturally to what you see. Be genuine.
+- React naturally to what you see. Be genuine and casual.
+- Tone should be warm, friendly, like a smart friend glancing at their profile.
+- Use simple, casual words: "cool," "neat," "wild," "super" over formal words like "compelling," "impressive," "notable."
 - If there's a career pivot or interesting transition, lead with that.
 - If data is sparse, just acknowledge what's there simply.
 
 STRICT PROFILE DATA (use ONLY this information):
 ${dataSection}
 
-TONE EXAMPLES (adapt but follow this style):
-- "Hi Allan, your background in HVAC sales at Unique before making the jump to insurance at Allegiance - super differentiated and impressive!"
-- "Hi Kelly, managing a missing children program at ADVO before building corporate insurance at Allegiance - impressive public service mindset carried over."
-- "Hi Robert, 15 years building Diversified since 2008 - much respect to the depth on group health."
+TONE EXAMPLES (adapt but follow this style - casual & genuine):
+- "Hi Rebecca, going from Founder and CEO at Calcu to Head of GTM at Blueiot - that's a cool shift."
+- "Hi Allan, HVAC sales at Unique before jumping to insurance at Allegiance - super differentiated."
+- "Hi Kelly, managed a missing children program at ADVO before moving to corporate insurance at Allegiance - neat how that carries over."
+- "Hi Robert, 15 years building Diversified - much respect to that depth."
 
 Generate ONE personalized opener using ONLY the facts above. Do not add details, years, companies, or context that isn't explicitly listed.
 
