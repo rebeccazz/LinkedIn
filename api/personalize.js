@@ -96,38 +96,53 @@ function buildPersonalizationPrompt({
   education,
   volunteerWork
 }) {
+  // Build a strict, fact-based prompt that minimizes hallucination
+  let dataPoints = [];
+
+  if (currentRole && currentCompany) {
+    dataPoints.push(`Currently: ${currentRole} at ${currentCompany}`);
+  }
+
+  if (previousRole && previousCompany && previousCompany !== currentCompany) {
+    dataPoints.push(`Previously: ${previousRole} at ${previousCompany}`);
+  }
+
+  if (yearsInIndustry && yearsInIndustry > 0) {
+    dataPoints.push(`Years in industry: ${yearsInIndustry}`);
+  }
+
+  if (education && education.school) {
+    dataPoints.push(`Education: ${education.school}`);
+  }
+
+  if (volunteerWork && volunteerWork.org) {
+    dataPoints.push(`Volunteer work: ${volunteerWork.role} at ${volunteerWork.org}`);
+  }
+
+  const dataSection = dataPoints.join('\n');
+
   return `
-You are generating a personalized first-line opener for a LinkedIn outreach message. The goal is to make a meaningful connection with someone in the employee benefits or insurance industry.
+You are generating a personalized first-line opener for a LinkedIn outreach message targeting the employee benefits/insurance industry.
 
-TONE: Warm, casual, short, direct. Like a quick DM from a smart friend who genuinely glanced at the profile. React to what you see, don't explain why it matters.
+CRITICAL RULES:
+- Use ONLY the facts provided below. Do NOT infer, assume, or hallucinate.
+- Never mention years or tenure that isn't explicitly stated.
+- Keep to 1-2 short sentences max.
+- Start with "Hi ${firstName}," and end with a period.
+- NEVER include filler like "happy to connect," "would love to," etc.
+- React naturally to what you see. Be genuine.
+- If there's a career pivot or interesting transition, lead with that.
+- If data is sparse, just acknowledge what's there simply.
 
-RULES:
-- Keep to 1-2 short sentences max. Lowercase energy is fine.
-- NEVER include "happy to connect" or any filler.
-- Anchor to SPECIFIC details: actual company names, actual titles.
-- Lead with the most interesting/unexpected detail, not the most chronological.
-- React to what you see -- don't explain why it's interesting.
-- No bridge explanations like "that background translates well into this space."
-- The tone must be clearly complimentary.
-- Years: ~17-19 years = "almost two decades", ~20+ = "two decades", ~11-14 = "over a decade", 5-7 = just use the number
+STRICT PROFILE DATA (use ONLY this information):
+${dataSection}
 
-CONTEXT DATA:
-- First Name: ${firstName}
-- Last Name: ${lastName || ''}
-- Current Role: ${currentRole}
-- Current Company: ${currentCompany}
-- Previous Role: ${previousRole || 'N/A'}
-- Previous Company: ${previousCompany || 'N/A'}
-- Years in Industry: ${yearsInIndustry || 'N/A'}
-- Education: ${education ? education.school : 'N/A'}
-- Volunteer Work: ${volunteerWork ? volunteerWork.org : 'N/A'}
-
-EXAMPLE GOOD OPENERS:
+TONE EXAMPLES (adapt but follow this style):
 - "Hi Allan, your background in HVAC sales at Unique before making the jump to insurance at Allegiance - super differentiated and impressive!"
-- "Hi Jason, two decades as the CEO of Applegate before building Allegiance Insurance Brokers - such a wild pivot and much respect!"
 - "Hi Kelly, managing a missing children program at ADVO before building corporate insurance at Allegiance - impressive public service mindset carried over."
+- "Hi Robert, 15 years building Diversified since 2008 - much respect to the depth on group health."
 
-Generate ONE personalized first-line opener. Start with "Hi ${firstName}," and keep it punchy. Focus on the most interesting career detail or transition you can identify from the data.
+Generate ONE personalized opener using ONLY the facts above. Do not add details, years, companies, or context that isn't explicitly listed.
 
 Output only the opener text, nothing else.
 `;
