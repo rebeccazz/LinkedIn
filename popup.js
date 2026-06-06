@@ -1,9 +1,19 @@
 // ===== 🔧 CONFIG =====
+let currentProfileData = null;
+
 // Load custom message from storage on popup open
 chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
   if (closingMessage) {
     document.getElementById("closing-message").value = closingMessage;
     updateCharCount();
+  }
+});
+
+// Check if we're on a LinkedIn profile and enable personalization
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const url = tabs[0].url;
+  if (url && url.includes("linkedin.com/in/")) {
+    document.getElementById("personalization-section").style.display = "block";
   }
 });
 
@@ -118,6 +128,78 @@ document.getElementById("option1-copy").onclick = function() {
 };
 
 document.getElementById("option2-copy").onclick = function() {
+  copyToClipboard(this);
+};
+
+// ===== 🔧 6. Personalization handler =====
+document.getElementById("generate-personalization").onclick = async () => {
+  const statusEl = document.getElementById("personalization-status");
+  const outputEl = document.getElementById("personalization-output");
+  const copyBtn = document.getElementById("personalization-copy");
+
+  statusEl.innerText = "Generating...";
+  outputEl.style.display = "none";
+  copyBtn.style.display = "none";
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    const profileData = await chrome.tabs.sendMessage(tab.id, {
+      type: "GET_PROFILE_FOR_PERSONALIZATION"
+    });
+
+    console.log("📊 Profile data for personalization:", profileData);
+
+    const response = await fetch("https://linked-in-nu-virid.vercel.app/api/personalize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(profileData)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to generate personalization");
+    }
+
+    let opener = data.personalizationOpener
+      .replace(/^"|"$/g, "")
+      .replace(/\n/g, " ")
+      .trim();
+
+    outputEl.innerText = opener;
+    outputEl.style.display = "block";
+    copyBtn.style.display = "flex";
+    statusEl.innerText = "Done";
+
+  } catch (err) {
+    console.error("❌ Personalization error:", err);
+    let errorMsg = "Error generating opener";
+
+    if (err.message.includes("Receiving end does not exist")) {
+      errorMsg = "Open a LinkedIn profile page first";
+    } else if (err.message.includes("Failed to fetch")) {
+      errorMsg = "Network error - check connection";
+    } else if (err.message) {
+      errorMsg = err.message;
+    }
+
+    console.error("Full error details:", {
+      message: err.message,
+      stack: err.stack
+    });
+
+    outputEl.innerText = errorMsg;
+    outputEl.style.display = "block";
+    copyBtn.style.display = "none";
+    statusEl.innerText = "Error";
+  }
+};
+
+// ===== 🔧 Copy personalization button =====
+document.getElementById("personalization-copy").onclick = function() {
   copyToClipboard(this);
 };
 

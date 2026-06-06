@@ -116,6 +116,66 @@ function getRecentActivity() {
   return results;
 }
 
+// Extract education info
+function getEducation() {
+  const sections = Array.from(document.querySelectorAll("section"));
+  const eduSection = sections.find(sec => sec.innerText.includes("Education"));
+
+  if (!eduSection) {
+    console.log("❌ No Education section found");
+    return null;
+  }
+
+  const eduItem = eduSection.querySelector('[componentkey^="entity-collection-item"]');
+  if (!eduItem) return null;
+
+  const schoolImg = eduItem.querySelector('img[alt]');
+  const school = schoolImg?.alt?.replace(/ logo$/i, '').trim() || '';
+
+  const paras = Array.from(eduItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+  const degree = paras[0] || '';
+  const field = paras[1] || '';
+
+  return { school, degree, field };
+}
+
+// Extract volunteer work
+function getVolunteerWork() {
+  const sections = Array.from(document.querySelectorAll("section"));
+  const volSection = sections.find(sec => sec.innerText.includes("Volunteer") || sec.innerText.includes("Causes"));
+
+  if (!volSection) {
+    console.log("❌ No Volunteer section found");
+    return null;
+  }
+
+  const volItem = volSection.querySelector('[componentkey^="entity-collection-item"]');
+  if (!volItem) return null;
+
+  const paras = Array.from(volItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+  const role = paras[0] || '';
+  const org = paras[1] || '';
+
+  return { role, org };
+}
+
+// Calculate years in industry from experience
+function calculateYearsInIndustry(experienceBlocks) {
+  if (!experienceBlocks || experienceBlocks.length === 0) return null;
+
+  const oldestRole = experienceBlocks[experienceBlocks.length - 1];
+  if (!oldestRole.date) return null;
+
+  const dateMatch = oldestRole.date.match(/(\d{4})/);
+  if (!dateMatch) return null;
+
+  const startYear = parseInt(dateMatch[1]);
+  const currentYear = new Date().getFullYear();
+  const years = currentYear - startYear;
+
+  return years > 0 ? years : null;
+}
+
 // Main function: collect profile data
 function getProfileData() {
   let name = null;
@@ -149,9 +209,48 @@ function getProfileData() {
   };
 }
 
+// Extended profile data for personalization
+function getProfileDataForPersonalization() {
+  const basicData = getProfileData();
+  const experienceBlocks = basicData.experienceBlocks;
+  const education = getEducation();
+  const volunteerWork = getVolunteerWork();
+  const yearsInIndustry = calculateYearsInIndustry(experienceBlocks);
+
+  // Extract name parts
+  let firstName = '', lastName = '';
+  if (basicData.name) {
+    const nameParts = basicData.name.split(' ');
+    firstName = nameParts[0] || '';
+    lastName = nameParts.slice(1).join(' ') || '';
+  }
+
+  // Current and previous roles
+  const currentRole = experienceBlocks[0] ? experienceBlocks[0].title : '';
+  const currentCompany = experienceBlocks[0] ? experienceBlocks[0].company : '';
+  const previousRole = experienceBlocks[1] ? experienceBlocks[1].title : '';
+  const previousCompany = experienceBlocks[1] ? experienceBlocks[1].company : '';
+
+  return {
+    firstName,
+    lastName,
+    currentRole,
+    currentCompany,
+    previousRole,
+    previousCompany,
+    yearsInIndustry,
+    education,
+    volunteerWork,
+    allExperienceBlocks: experienceBlocks,
+    recentActivity: basicData.recentActivity
+  };
+}
+
 // Listen for messages from popup.js
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.type === "GET_PROFILE") {
     sendResponse(getProfileData());
+  } else if (req.type === "GET_PROFILE_FOR_PERSONALIZATION") {
+    sendResponse(getProfileDataForPersonalization());
   }
 });
