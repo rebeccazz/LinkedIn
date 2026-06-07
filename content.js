@@ -119,15 +119,22 @@ function getRecentActivity() {
 // Extract education info with more detail
 function getEducation() {
   const sections = Array.from(document.querySelectorAll("section"));
+  console.log("🔍 Searching for Education section among", sections.length, "sections");
+
   const eduSection = sections.find(sec => {
     const text = sec.innerText;
     return text.includes("Education") && !text.includes("Experience");
   });
 
   if (!eduSection) {
-    console.log("❌ No Education section found");
+    console.log("❌ No Education section found - checking section texts:");
+    sections.slice(0, 5).forEach((sec, i) => {
+      console.log(`  Section ${i}: ${sec.innerText.substring(0, 50)}...`);
+    });
     return null;
   }
+
+  console.log("✅ Education section found");
 
   // Find all education items in this section
   const allItems = Array.from(eduSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
@@ -173,15 +180,22 @@ function getEducation() {
 // Extract volunteer work with recency check (last 5 years)
 function getVolunteerWork() {
   const sections = Array.from(document.querySelectorAll("section"));
+  console.log("🔍 Searching for Volunteer section among", sections.length, "sections");
+
   const volSection = sections.find(sec => {
     const text = sec.innerText;
     return (text.includes("Volunteer") || text.includes("Causes")) && !text.includes("Experience");
   });
 
   if (!volSection) {
-    console.log("❌ No Volunteer section found");
+    console.log("❌ No Volunteer section found - checking section texts:");
+    sections.slice(0, 5).forEach((sec, i) => {
+      console.log(`  Section ${i}: ${sec.innerText.substring(0, 50)}...`);
+    });
     return null;
   }
+
+  console.log("✅ Volunteer section found");
 
   // Find all volunteer items in this section
   const allItems = Array.from(volSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
