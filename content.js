@@ -119,78 +119,109 @@ function getRecentActivity() {
 // Extract education info with more detail
 function getEducation() {
   const sections = Array.from(document.querySelectorAll("section"));
-  const eduSection = sections.find(sec => sec.innerText.includes("Education"));
+  const eduSection = sections.find(sec => {
+    const text = sec.innerText;
+    return text.includes("Education") && !text.includes("Experience");
+  });
 
   if (!eduSection) {
     console.log("❌ No Education section found");
     return null;
   }
 
-  const eduItem = eduSection.querySelector('[componentkey^="entity-collection-item"]');
-  if (!eduItem) return null;
+  // Find all education items in this section
+  const allItems = Array.from(eduSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
 
-  const schoolImg = eduItem.querySelector('img[alt]');
-  const school = schoolImg?.alt?.replace(/ logo$/i, '').trim() || '';
+  if (allItems.length === 0) {
+    console.log("❌ No education items found in Education section");
+    return null;
+  }
 
-  // Get all text content from the item
+  // Use the first education item
+  const eduItem = allItems[0];
   const allText = eduItem.innerText;
+
+  // Extract school name (usually first line or from image alt)
+  const schoolImg = eduItem.querySelector('img[alt]');
+  let school = schoolImg?.alt?.replace(/ logo$/i, '').trim() || '';
+
+  // Get all paragraphs - they usually contain: school, degree, field, dates
   const paras = Array.from(eduItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
 
-  // Parse education details
-  const degree = paras[0] || '';
-  const field = paras[1] || '';
+  // If no school found from image, try first paragraph
+  if (!school && paras.length > 0) {
+    school = paras[0];
+  }
 
-  // Try to find graduation year in the text
+  const degree = paras[1] || '';
+  const field = paras[2] || '';
+
+  // Find graduation year (look for 4-digit number that looks like a year)
   let gradYear = '';
-  const yearMatch = allText.match(/(\d{4})/);
-  if (yearMatch) {
-    gradYear = yearMatch[1];
+  const yearMatches = allText.match(/\b(19|20)\d{2}\b/g);
+  if (yearMatches && yearMatches.length > 0) {
+    gradYear = yearMatches[yearMatches.length - 1];
   }
 
   const education = { school, degree, field };
   if (gradYear) education.gradYear = gradYear;
 
-  console.log("✅ Education found:", education);
+  console.log("✅ Education extracted:", education);
   return education;
 }
 
 // Extract volunteer work with recency check (last 5 years)
 function getVolunteerWork() {
   const sections = Array.from(document.querySelectorAll("section"));
-  const volSection = sections.find(sec => sec.innerText.includes("Volunteer") || sec.innerText.includes("Causes"));
+  const volSection = sections.find(sec => {
+    const text = sec.innerText;
+    return (text.includes("Volunteer") || text.includes("Causes")) && !text.includes("Experience");
+  });
 
   if (!volSection) {
     console.log("❌ No Volunteer section found");
     return null;
   }
 
-  const volItem = volSection.querySelector('[componentkey^="entity-collection-item"]');
-  if (!volItem) return null;
+  // Find all volunteer items in this section
+  const allItems = Array.from(volSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
 
+  if (allItems.length === 0) {
+    console.log("❌ No volunteer items found in Volunteer section");
+    return null;
+  }
+
+  // Use the first volunteer item
+  const volItem = allItems[0];
   const allText = volItem.innerText;
+
+  // Get all paragraphs - they usually contain: role, org, dates
   const paras = Array.from(volItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
 
   const role = paras[0] || '';
   const org = paras[1] || '';
 
   // Check if volunteer work is recent (within last 5 years)
-  // Look for date patterns like "2020–Present" or "2024"
   const currentYear = new Date().getFullYear();
   let isRecent = false;
 
-  const dateMatch = allText.match(/(\d{4})/);
-  if (dateMatch) {
-    const year = parseInt(dateMatch[1]);
-    if (currentYear - year <= 5) {
+  // Look for date patterns
+  const yearMatches = allText.match(/\b(19|20)\d{2}\b/g);
+  if (yearMatches && yearMatches.length > 0) {
+    const latestYear = Math.max(...yearMatches.map(y => parseInt(y)));
+    if (currentYear - latestYear <= 5) {
       isRecent = true;
     }
-  } else if (allText.includes("Present")) {
+  }
+
+  // Also check for "Present"
+  if (allText.includes("Present")) {
     isRecent = true;
   }
 
   const volunteer = { role, org, isRecent };
 
-  console.log("✅ Volunteer work found:", volunteer);
+  console.log("✅ Volunteer work extracted:", volunteer);
   return volunteer;
 }
 
