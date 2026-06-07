@@ -222,9 +222,10 @@ function getProfileDataForPersonalization() {
     lastName = nameParts.slice(1).join(' ') || '';
   }
 
-  // Get current and previous roles - MUST have at least current
-  const currentRole = (experienceBlocks[0]?.title || 'Professional').trim();
-  const currentCompany = (experienceBlocks[0]?.company || 'Current Company').trim();
+  // Get current and previous roles
+  // Use basicData.title as fallback if experienceBlocks is empty
+  const currentRole = (experienceBlocks[0]?.title || basicData.title || '').trim();
+  const currentCompany = (experienceBlocks[0]?.company || '').trim();
   const previousRole = (experienceBlocks[1]?.title || '').trim();
   const previousCompany = (experienceBlocks[1]?.company || '').trim();
 
@@ -246,7 +247,11 @@ function getProfileDataForPersonalization() {
     recentActivity: basicData.recentActivity
   };
 
-  console.log("✅ Profile data for personalization:", profileData);
+  console.log("✅ Profile data extracted:");
+  console.log("   Name:", firstName, lastName);
+  console.log("   Current:", currentRole, "@", currentCompany);
+  console.log("   Previous:", previousRole, "@", previousCompany);
+  console.log("   Full data:", profileData);
 
   return profileData;
 }

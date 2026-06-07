@@ -28,7 +28,11 @@ export default async function handler(req, res) {
   } = req.body;
 
   if (!firstName || !currentRole || !currentCompany) {
-    return res.status(400).json({ error: "Missing required fields: firstName, currentRole, currentCompany" });
+    return res.status(400).json({
+      error: "Missing required fields",
+      received: { firstName, currentRole, currentCompany },
+      message: "Make sure you're on a LinkedIn profile with experience listed"
+    });
   }
 
   const apiKey = process.env.Claude;
