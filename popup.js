@@ -117,14 +117,6 @@ function displayProfileData(profileData, descriptions = {}) {
     html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">📚 Education: Not found</div>`;
   }
 
-  // Volunteer — only shown when within the last 5 years (content.js returns null otherwise)
-  const vol = profileData.volunteerWork;
-  if (vol && vol.org) {
-    let line = `<strong>🤝 Volunteer:</strong> ${esc(vol.role)} at ${esc(vol.org)}`;
-    if (vol.years) line += ` <span style="color: #999;">(${esc(vol.years)})</span>`;
-    html += `<div style="margin-bottom: 8px;">${line}</div>`;
-  }
-
   detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Profile details unavailable</div>";
 }
 
@@ -139,7 +131,7 @@ async function loadProfileOverview() {
     });
     currentProfileData = profileData;
 
-    // First paint: roles + education/volunteer show immediately; the two
+    // First paint: roles + education show immediately; the two
     // 7-10 word description lines fill in once Claude/Apollo respond.
     displayProfileData(profileData);
 

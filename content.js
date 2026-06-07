@@ -125,30 +125,29 @@ function textLines(el) {
     });
 }
 
-// Find the <section> for a given heading (e.g. "Education", "Volunteer").
-// LinkedIn nests sections and repeats words across them, so we rank candidates:
-// prefer the section whose heading line IS the keyword, then the smallest one
-// that actually contains profile entity items.
-function findProfileSection(keyword) {
-  const sections = Array.from(document.querySelectorAll("section"));
+// Find the <section> for a profile area (e.g. "Education").
+// Text matching is unreliable — the Experience section's text contains the word
+// "Education" too, which made us grab the wrong section. Instead we anchor on:
+//   1) LinkedIn's section anchor id (e.g. <div id="education">), then
+//   2) an exact heading element ("Education").
+// If neither is found we return null (better to show "Not found" than garbage).
+function findProfileSection(anchorId, keyword) {
+  const anchor = document.getElementById(anchorId);
+  if (anchor) {
+    const sec = anchor.closest("section") || anchor.parentElement;
+    if (sec) return sec;
+  }
+
   const kw = keyword.toLowerCase();
-
-  const candidates = sections.filter(sec => sec.innerText.toLowerCase().includes(kw));
-  if (candidates.length === 0) return null;
-
-  // Score: heading match is strongest; among those, smaller text = more specific.
-  candidates.sort((a, b) => {
-    const aHead = a.innerText.trim().toLowerCase().startsWith(kw) ? 0 : 1;
-    const bHead = b.innerText.trim().toLowerCase().startsWith(kw) ? 0 : 1;
-    if (aHead !== bHead) return aHead - bHead;
-    return a.innerText.length - b.innerText.length;
-  });
-
-  // Prefer a candidate that has entity items; else fall back to the best-ranked.
-  const withItems = candidates.find(
-    sec => sec.querySelectorAll('[componentkey^="entity-collection-item"]').length > 0
-  );
-  return withItems || candidates[0];
+  const headings = Array.from(document.querySelectorAll('h2, h3, [role="heading"]'));
+  for (const h of headings) {
+    const t = h.innerText.trim().toLowerCase();
+    if (t === kw || (t.startsWith(kw) && t.length < kw.length + 8)) {
+      const sec = h.closest("section");
+      if (sec) return sec;
+    }
+  }
+  return null;
 }
 
 function parseYears(text) {
@@ -158,8 +157,8 @@ function parseYears(text) {
   return yearMatches && yearMatches.length ? yearMatches[yearMatches.length - 1] : "";
 }
 
-function getEducation() {
-  const eduSection = findProfileSection("Education");
+function getEducation(excludeCompanies = []) {
+  const eduSection = findProfileSection("education", "Education");
   if (!eduSection) {
     console.log("❌ No Education section found");
     return null;
@@ -178,14 +177,23 @@ function getEducation() {
   let lines = textLines(scope).filter(l => l.toLowerCase() !== "education");
   if (!school && lines.length) school = lines[0];
 
-  // Degree/field line: first line with a comma or a degree keyword, that isn't
-  // the school name or a pure date range.
-  const degreeKeywords = /\b(bachelor|master|associate|doctor|phd|mba|b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?a\.?|degree|engineering|science|arts|studies)\b/i;
+  // Guard: if the "school" is actually one of the person's employers, we grabbed
+  // the Experience section by mistake — bail out rather than show garbage.
+  const exclude = excludeCompanies.map(c => (c || "").toLowerCase()).filter(Boolean);
+  if (school && exclude.includes(school.toLowerCase())) {
+    console.log("⏭️ Education match looked like an employer — skipping:", school);
+    return null;
+  }
+
+  // Degree/field line: first line with a degree keyword, that isn't the school
+  // name or a pure date range. (We require a degree keyword so a tools/skills
+  // list — "Claude, n8n, Clay, ..." — never gets mistaken for a field of study.)
+  const degreeKeywords = /\b(bachelor|master|associate|doctor|phd|mba|b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?a\.?|degree|diploma|engineering|science|arts|business|economics|finance|marketing|computer|psychology|biology|chemistry|physics|mathematics|studies)\b/i;
   const degreeFieldLine = lines.find(l =>
     l !== school &&
     !/^\d{4}\s*[-–]\s*(\d{4}|present)/i.test(l) &&
-    !/^(grade|activities|skills|grade:)/i.test(l) &&
-    (l.includes(",") || degreeKeywords.test(l))
+    !/^(grade|activities|skills)/i.test(l) &&
+    degreeKeywords.test(l)
   ) || "";
 
   let degree = "", field = "";
@@ -201,56 +209,8 @@ function getEducation() {
   const education = { school, degree, field, years };
 
   console.log("✅ Education extracted:", education);
-  // Only return something if we actually found a school or field.
-  return (school || field) ? education : null;
-}
-
-// Extract volunteer work with recency check (last 5 years)
-function getVolunteerWork() {
-  const volSection = findProfileSection("Volunteer");
-  if (!volSection) {
-    console.log("❌ No Volunteer section found");
-    return null;
-  }
-  console.log("✅ Volunteer section found");
-
-  // Prefer the first entity item; fall back to the section's text lines.
-  const items = Array.from(volSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
-  const scope = items[0] || volSection;
-  const allText = scope.innerText;
-
-  const lines = textLines(scope).filter(l => !/^volunteer/i.test(l));
-  const role = lines[0] || '';
-  const org = lines[1] || '';
-
-  // Only surface volunteer work from the last 5 years (per requirements).
-  const currentYear = new Date().getFullYear();
-  let isRecent = false;
-  let years = '';
-
-  const rangeMatch = allText.match(/\b((?:19|20)\d{2})\s*[-–]\s*((?:19|20)\d{2}|Present)\b/i);
-  if (rangeMatch) years = `${rangeMatch[1]} - ${rangeMatch[2]}`;
-
-  const yearMatches = allText.match(/\b(19|20)\d{2}\b/g);
-  if (yearMatches && yearMatches.length > 0) {
-    if (!years) years = yearMatches[yearMatches.length - 1];
-    const latestYear = Math.max(...yearMatches.map(y => parseInt(y)));
-    if (currentYear - latestYear <= 5) isRecent = true;
-  }
-
-  // "Present" means ongoing, so it counts as recent.
-  if (/present/i.test(allText)) isRecent = true;
-
-  // No recency signal at all -> treat as not recent (don't display).
-  if (!isRecent) {
-    console.log("⏭️ Volunteer work found but not within last 5 years — skipping");
-    return null;
-  }
-
-  const volunteer = { role, org, years };
-
-  console.log("✅ Volunteer work extracted:", volunteer);
-  return volunteer;
+  // Require a real school AND a degree/field signal, else treat as not found.
+  return (school && (degree || field)) ? education : null;
 }
 
 // Calculate years at a specific company
@@ -346,9 +306,8 @@ function getProfileDataForPersonalization() {
   const previousTenure = getYearsAtCompany(experienceBlocks[1]);
   const previousDescription = (experienceBlocks[1]?.description || '').trim();
 
-  // Get education and volunteer info
-  const education = getEducation();
-  const volunteerWork = getVolunteerWork();
+  // Education only — pass employers so we can reject an accidental Experience match.
+  const education = getEducation([currentCompany, previousCompany]);
   const yearsInIndustry = calculateYearsInIndustry(experienceBlocks);
 
   const profileData = {
@@ -364,7 +323,6 @@ function getProfileDataForPersonalization() {
     previousDescription,
     yearsInIndustry,
     education,
-    volunteerWork,
     allExperienceBlocks: experienceBlocks,
     recentActivity: basicData.recentActivity
   };
