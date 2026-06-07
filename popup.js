@@ -9,59 +9,49 @@ chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
   }
 });
 
-// Check if we're on a LinkedIn profile and load profile data
+// Check if we're on a LinkedIn profile and enable personalization
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const url = tabs[0].url;
   if (url && url.includes("linkedin.com/in/")) {
     document.getElementById("personalization-section").style.display = "block";
-    loadAndDisplayProfileData(tabs[0].id);
   }
 });
 
-// Load profile data and display it
-async function loadAndDisplayProfileData(tabId) {
-  try {
-    const profileData = await chrome.tabs.sendMessage(tabId, {
-      type: "GET_PROFILE_FOR_PERSONALIZATION"
-    });
+// Display profile data
+function displayProfileData(profileData) {
+  const detailsEl = document.getElementById("profile-details");
+  let html = "";
 
-    const detailsEl = document.getElementById("profile-details");
-    let html = "";
-
-    // Current role
-    if (profileData.currentRole && profileData.currentCompany) {
-      const tenure = profileData.currentTenure?.years || '?';
-      html += `<div style="margin-bottom: 10px;"><strong>Current:</strong> ${profileData.currentRole}</div>`;
-      html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.currentCompany}${profileData.currentTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
-    }
-
-    // Previous role
-    if (profileData.previousRole && profileData.previousCompany) {
-      const tenure = profileData.previousTenure?.years || '?';
-      html += `<div style="margin-bottom: 10px;"><strong>Previous:</strong> ${profileData.previousRole}</div>`;
-      html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.previousCompany}${profileData.previousTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
-    }
-
-    // Education
-    if (profileData.education && profileData.education.school) {
-      html += `<div style="margin-bottom: 8px;"><strong>Education:</strong> ${profileData.education.school}`;
-      if (profileData.education.degree) html += ` • ${profileData.education.degree}`;
-      if (profileData.education.field) html += ` (${profileData.education.field})`;
-      if (profileData.education.gradYear) html += ` • ${profileData.education.gradYear}`;
-      html += `</div>`;
-    }
-
-    // Volunteer work (last 5 years)
-    if (profileData.volunteerWork && profileData.volunteerWork.org) {
-      const recency = profileData.volunteerWork.isRecent ? '✓ Recent' : 'Older';
-      html += `<div style="margin-bottom: 8px;"><strong>Volunteer:</strong> ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org} <span style="color: #999;">(${recency})</span></div>`;
-    }
-
-    detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Loading profile details...</div>";
-  } catch (err) {
-    console.log("Profile data not available:", err.message);
-    document.getElementById("profile-details").innerHTML = "<div style='color: #999; font-size: 12px;'>Open a LinkedIn profile to see details</div>";
+  // Current role
+  if (profileData.currentRole && profileData.currentCompany) {
+    const tenure = profileData.currentTenure?.years || '?';
+    html += `<div style="margin-bottom: 10px;"><strong>Current:</strong> ${profileData.currentRole}</div>`;
+    html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.currentCompany}${profileData.currentTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
   }
+
+  // Previous role
+  if (profileData.previousRole && profileData.previousCompany) {
+    const tenure = profileData.previousTenure?.years || '?';
+    html += `<div style="margin-bottom: 10px;"><strong>Previous:</strong> ${profileData.previousRole}</div>`;
+    html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.previousCompany}${profileData.previousTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
+  }
+
+  // Education
+  if (profileData.education && profileData.education.school) {
+    html += `<div style="margin-bottom: 8px;"><strong>Education:</strong> ${profileData.education.school}`;
+    if (profileData.education.degree) html += ` • ${profileData.education.degree}`;
+    if (profileData.education.field) html += ` (${profileData.education.field})`;
+    if (profileData.education.gradYear) html += ` • ${profileData.education.gradYear}`;
+    html += `</div>`;
+  }
+
+  // Volunteer work (last 5 years)
+  if (profileData.volunteerWork && profileData.volunteerWork.org) {
+    const recency = profileData.volunteerWork.isRecent ? '✓ Recent' : 'Older';
+    html += `<div style="margin-bottom: 8px;"><strong>Volunteer:</strong> ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org} <span style="color: #999;">(${recency})</span></div>`;
+  }
+
+  detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>No details found</div>";
 }
 
 // Auto-save custom message (debounced) and update display
@@ -195,8 +185,12 @@ document.getElementById("generate-personalization").onclick = async () => {
       type: "GET_PROFILE_FOR_PERSONALIZATION"
     });
 
-    console.log("📊 Profile data:", profileData);
+    console.log("📊 Full profile data:", profileData);
 
+    // Display the profile data
+    displayProfileData(profileData);
+
+    // Generate opener
     const response = await fetch("https://linked-in-nu-virid.vercel.app/api/personalize", {
       method: "POST",
       headers: {
