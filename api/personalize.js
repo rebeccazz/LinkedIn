@@ -125,19 +125,24 @@ function buildPersonalizationPrompt({
 
   const dataSection = dataPoints.join('\n');
 
+  // Determine which vibe to lead with based on career length
+  const hasLongCareer = yearsInIndustry && yearsInIndustry >= 15;
+  const vibeChoice = hasLongCareer ? "cool path" : "really cool background";
+
   return `
 You are writing a personalized LinkedIn opener for someone's outreach.
 
 YOUR VOICE: Warm, casual, conversational. Like a friend who glanced at their profile.
 
-STRUCTURE OPTIONS (lead with VIBE, then interesting detail):
-1. Background: "Hi [Name], really cool background in [skills] at [company]."
-2. Path: "Hi [Name], cool path leading [skills] at [company] and [other role/company]."
-3. Depth: "Hi [Name], impressive building [depth/breadth] at [company]."
+PRIMARY VIBE TO USE: "${vibeChoice}"
+${hasLongCareer ? `(Long career detected: ~${yearsInIndustry} years - "cool path" is appropriate)` : `(Typical career - stick with "really cool background")`}
+
+STRUCTURE (always lead with this vibe, then interesting detail):
+- "Hi [Name], ${vibeChoice} in [skills/role details] at [company] and/or [other details]."
 
 KEY RULES:
 - Start with "Hi ${firstName},"
-- Lead with VIBE first: "really cool," "cool path," "impressive," "neat," "much respect"
+- Lead with VIBE: "${vibeChoice}"
 - Put MOST INTERESTING detail first (not chronologically)
 - Be conversational, casual, genuine
 - 1-2 sentences max
@@ -150,9 +155,9 @@ ${dataSection}
 
 EXAMPLES:
 - "Hi Didier, really cool background in public sector strategy and board work at Microsoft and Augoria."
-- "Hi Rebecca, cool path from Founder/CEO at Calcu to GTM at Blueiot."
-- "Hi Sarah, impressive breadth in both product and sales over 12+ years at Acme."
-- "Hi James, neat transition from nonprofit into enterprise software leadership."
+- "Hi Sarah, really cool background in product strategy and sales at Acme and SaaS Co."
+- "Hi Robert, cool path building enterprise software over 20+ years at Diversified."
+- "Hi James, really cool background in nonprofit operations moving into enterprise leadership."
 
 Generate ONE opener. Output ONLY the text, nothing else.
 `;

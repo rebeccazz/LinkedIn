@@ -9,13 +9,55 @@ chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
   }
 });
 
-// Check if we're on a LinkedIn profile and enable personalization
+// Check if we're on a LinkedIn profile and load profile data
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const url = tabs[0].url;
   if (url && url.includes("linkedin.com/in/")) {
     document.getElementById("personalization-section").style.display = "block";
+    loadAndDisplayProfileData(tabs[0].id);
   }
 });
+
+// Load profile data and display it
+async function loadAndDisplayProfileData(tabId) {
+  try {
+    const profileData = await chrome.tabs.sendMessage(tabId, {
+      type: "GET_PROFILE_FOR_PERSONALIZATION"
+    });
+
+    const detailsEl = document.getElementById("profile-details");
+    let html = "";
+
+    if (profileData.firstName) {
+      html += `<strong>${profileData.firstName}${profileData.lastName ? " " + profileData.lastName : ""}</strong><br>`;
+    }
+
+    if (profileData.currentRole && profileData.currentCompany) {
+      html += `📍 <strong>${profileData.currentRole}</strong> at ${profileData.currentCompany}<br>`;
+    }
+
+    if (profileData.previousRole && profileData.previousCompany) {
+      html += `← <strong>${profileData.previousRole}</strong> at ${profileData.previousCompany}<br>`;
+    }
+
+    if (profileData.yearsInIndustry) {
+      html += `⏱️ ~${profileData.yearsInIndustry} years in industry<br>`;
+    }
+
+    if (profileData.education && profileData.education.school) {
+      html += `🎓 ${profileData.education.school}${profileData.education.degree ? " (" + profileData.education.degree + ")" : ""}<br>`;
+    }
+
+    if (profileData.volunteerWork && profileData.volunteerWork.org) {
+      html += `🤝 ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org}<br>`;
+    }
+
+    detailsEl.innerHTML = html || "<div style='color: #999;'>No details found</div>";
+  } catch (err) {
+    console.log("Profile data not available:", err.message);
+    document.getElementById("profile-details").innerHTML = "<div style='color: #999;'>Open a LinkedIn profile to see details</div>";
+  }
+}
 
 // Auto-save custom message (debounced) and update display
 let saveTimeout;
