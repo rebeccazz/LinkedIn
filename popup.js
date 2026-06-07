@@ -120,16 +120,34 @@ function displayProfileData(profileData, descriptions = {}) {
   detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Profile details unavailable</div>";
 }
 
+// Ask the content script for profile data, retrying while the LinkedIn page is
+// still rendering its Experience section (otherwise we can get empty roles).
+async function fetchProfileData(retries = 6, delayMs = 400) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let data = null;
+  for (let i = 0; i < retries; i++) {
+    data = await chrome.tabs.sendMessage(tab.id, { type: "GET_PROFILE_FOR_PERSONALIZATION" });
+    if (data && data.currentRole && data.currentCompany) return data;
+    await new Promise(r => setTimeout(r, delayMs));
+  }
+  return data; // best effort after retries
+}
+
 // Load the profile overview: render scraped data immediately, then fill in
-// Apollo company descriptions as they arrive.
-async function loadProfileOverview() {
+// Apollo company descriptions as they arrive. Accepts already-fetched data
+// (from the personalize button) so we don't query twice.
+async function loadProfileOverview(profileData) {
   const detailsEl = document.getElementById("profile-details");
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const profileData = await chrome.tabs.sendMessage(tab.id, {
-      type: "GET_PROFILE_FOR_PERSONALIZATION"
-    });
+    if (!profileData) profileData = await fetchProfileData();
     currentProfileData = profileData;
+
+    // Don't clobber the panel with a degraded view if the page wasn't ready.
+    if (!profileData || (!profileData.currentRole && !profileData.previousRole)) {
+      console.warn("Profile data not ready (no roles found).");
+      detailsEl.innerHTML = "<div style='color: #999; font-size: 12px;'>Couldn't read this profile. Scroll the page so Experience is visible, then reopen.</div>";
+      return;
+    }
 
     // First paint: roles + education show immediately; the two
     // 7-10 word description lines fill in once Claude/Apollo respond.
@@ -275,16 +293,13 @@ document.getElementById("generate-personalization").onclick = async () => {
   copyBtn.style.display = "none";
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-    const profileData = await chrome.tabs.sendMessage(tab.id, {
-      type: "GET_PROFILE_FOR_PERSONALIZATION"
-    });
+    const profileData = await fetchProfileData();
 
     console.log("📊 Full profile data:", profileData);
 
-    // Profile overview (with Apollo descriptions) is loaded on popup open; we
-    // don't re-render it here so we don't wipe the enriched company descriptions.
+    // Refresh the overview with this (retried) data — recovers the panel if the
+    // auto-load on popup open happened before the page finished rendering.
+    loadProfileOverview(profileData);
 
     // Generate opener
     const response = await fetch(`${API_BASE_URL}/api/personalize`, {
