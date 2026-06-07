@@ -1,4 +1,9 @@
 // ===== 🔧 CONFIG =====
+// 🔄 SWITCH BETWEEN LOCAL AND PRODUCTION
+// For LOCAL testing: change to "http://localhost:3000"
+// For PRODUCTION: change to "https://linked-in-nu-virid.vercel.app"
+const API_BASE_URL = "http://localhost:3000";  // ← CHANGE THIS TO SWITCH
+
 let currentProfileData = null;
 
 // Load custom message from storage on popup open
@@ -123,7 +128,7 @@ function extractExperience(experienceBlocks) {
 
 // ===== 🔧 3. Backend API call =====
 async function callGemini(prompt) {
-  const response = await fetch("https://linked-in-nu-virid.vercel.app/api/groq", {
+  const response = await fetch(`${API_BASE_URL}/api/groq`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -191,7 +196,7 @@ document.getElementById("generate-personalization").onclick = async () => {
     displayProfileData(profileData);
 
     // Generate opener
-    const response = await fetch("https://linked-in-nu-virid.vercel.app/api/personalize", {
+    const response = await fetch(`${API_BASE_URL}/api/personalize`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
