@@ -132,19 +132,11 @@ document.getElementById("option2-copy").onclick = function() {
 };
 
 // ===== 🔧 6. Personalization handler =====
-const personalizationBtn = document.getElementById("generate-personalization");
-personalizationBtn.onclick = async () => {
+document.getElementById("generate-personalization").onclick = async () => {
   const statusEl = document.getElementById("personalization-status");
   const outputEl = document.getElementById("personalization-output");
   const copyBtn = document.getElementById("personalization-copy");
 
-  if (!statusEl || !outputEl || !copyBtn) {
-    console.error("❌ Personalization elements not found in DOM");
-    return;
-  }
-
-  // Disable button during generation
-  personalizationBtn.disabled = true;
   statusEl.innerText = "Generating...";
   outputEl.style.display = "none";
   copyBtn.style.display = "none";
@@ -156,7 +148,7 @@ personalizationBtn.onclick = async () => {
       type: "GET_PROFILE_FOR_PERSONALIZATION"
     });
 
-    console.log("📊 Profile data for personalization:", profileData);
+    console.log("📊 Profile data:", profileData);
 
     const response = await fetch("https://linked-in-nu-virid.vercel.app/api/personalize", {
       method: "POST",
@@ -180,33 +172,21 @@ personalizationBtn.onclick = async () => {
     outputEl.innerText = opener;
     outputEl.style.display = "block";
     copyBtn.style.display = "flex";
-    statusEl.innerText = "✓ Click button again for a new opener";
+    statusEl.innerText = "✓ Click again for new";
 
   } catch (err) {
-    console.error("❌ Personalization error:", err);
+    console.error("❌ Error:", err);
     let errorMsg = "Error generating opener";
 
     if (err.message.includes("Receiving end does not exist")) {
-      errorMsg = "Open a LinkedIn profile page first";
-    } else if (err.message.includes("Failed to fetch")) {
-      errorMsg = "Network error - check connection";
+      errorMsg = "Open a LinkedIn profile first";
     } else if (err.message) {
       errorMsg = err.message;
     }
 
-    console.error("Full error details:", {
-      message: err.message,
-      stack: err.stack
-    });
-
     outputEl.innerText = errorMsg;
     outputEl.style.display = "block";
-    copyBtn.style.display = "none";
-    statusEl.innerText = "Error - try again";
-
-  } finally {
-    // Re-enable button so user can click again
-    personalizationBtn.disabled = false;
+    statusEl.innerText = "Error";
   }
 };
 

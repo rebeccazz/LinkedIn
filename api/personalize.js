@@ -126,31 +126,34 @@ function buildPersonalizationPrompt({
   const dataSection = dataPoints.join('\n');
 
   return `
-You are generating a personalized first-line opener for a LinkedIn outreach message targeting the employee benefits/insurance industry.
+You are writing a personalized LinkedIn opener for someone's outreach.
 
-CRITICAL RULES:
-- Use ONLY the facts provided below. Do NOT infer, assume, or hallucinate.
-- Never mention years or tenure that isn't explicitly stated.
-- Keep to 1-2 short sentences max.
-- Start with "Hi ${firstName}," and end with a period.
-- NEVER include filler like "happy to connect," "would love to," etc.
-- React naturally to what you see. Be genuine and casual.
-- Tone should be warm, friendly, like a smart friend glancing at their profile.
-- Use simple, casual words: "cool," "neat," "wild," "super" over formal words like "compelling," "impressive," "notable."
-- If there's a career pivot or interesting transition, lead with that.
-- If data is sparse, just acknowledge what's there simply.
+YOUR VOICE: Warm, casual, conversational. Like a friend who glanced at their profile.
 
-STRICT PROFILE DATA (use ONLY this information):
+STRUCTURE OPTIONS (lead with VIBE, then interesting detail):
+1. Background: "Hi [Name], really cool background in [skills] at [company]."
+2. Path: "Hi [Name], cool path leading [skills] at [company] and [other role/company]."
+3. Depth: "Hi [Name], impressive building [depth/breadth] at [company]."
+
+KEY RULES:
+- Start with "Hi ${firstName},"
+- Lead with VIBE first: "really cool," "cool path," "impressive," "neat," "much respect"
+- Put MOST INTERESTING detail first (not chronologically)
+- Be conversational, casual, genuine
+- 1-2 sentences max
+- NO filler: "would love to connect," "happy to reach out," etc.
+- Use ONLY facts below - don't infer or hallucinate
+- Save character space - be concise
+
+FACTS (use ONLY these):
 ${dataSection}
 
-TONE EXAMPLES (adapt but follow this style - casual & genuine):
-- "Hi Rebecca, going from Founder and CEO at Calcu to Head of GTM at Blueiot - that's a cool shift."
-- "Hi Allan, HVAC sales at Unique before jumping to insurance at Allegiance - super differentiated."
-- "Hi Kelly, managed a missing children program at ADVO before moving to corporate insurance at Allegiance - neat how that carries over."
-- "Hi Robert, 15 years building Diversified - much respect to that depth."
+EXAMPLES:
+- "Hi Didier, really cool background in public sector strategy and board work at Microsoft and Augoria."
+- "Hi Rebecca, cool path from Founder/CEO at Calcu to GTM at Blueiot."
+- "Hi Sarah, impressive breadth in both product and sales over 12+ years at Acme."
+- "Hi James, neat transition from nonprofit into enterprise software leadership."
 
-Generate ONE personalized opener using ONLY the facts above. Do not add details, years, companies, or context that isn't explicitly listed.
-
-Output only the opener text, nothing else.
+Generate ONE opener. Output ONLY the text, nothing else.
 `;
 }
