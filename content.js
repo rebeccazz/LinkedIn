@@ -66,22 +66,14 @@ function getRecentActivity() {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Find date line (e.g., "2w •", "1mo •")
+    // Find date line (e.g., "2w •", "1mo •"). We take the latest 3 posts
+    // regardless of age — they're used to summarize the person's recent themes.
     if (line.match(/^\d+[dwmy]\s*•/i)) {
       const dateMatch = line.match(/(\d+)\s*([dwmy])/i);
       if (!dateMatch) continue;
 
       const [_, amount, unit] = dateMatch;
-      const unitLower = unit.toLowerCase();
-
-      let isWithin3Months = false;
-      if (unitLower === "d" || unitLower === "w") {
-        isWithin3Months = true;
-      } else if (unitLower === "m" || unitLower === "mo") {
-        isWithin3Months = parseInt(amount) <= 3;
-      }
-
-      if (!isWithin3Months) continue;
+      const age = `${amount}${unit}`;
 
       // Collect post text from next lines until we hit another date, "View analytics", or end
       let postText = [];
@@ -104,9 +96,9 @@ function getRecentActivity() {
         }
       }
 
-      const combined = postText.join(" ").trim().substring(0, 300);
+      const combined = postText.join(" ").trim().substring(0, 500);
       if (combined && combined.length > 20) {
-        results.push({ text: combined, type: "post" });
+        results.push({ text: combined, type: "post", age });
         if (results.length === 3) break;
       }
     }
@@ -117,123 +109,145 @@ function getRecentActivity() {
 }
 
 // Extract education info with more detail
-function getEducation() {
-  const sections = Array.from(document.querySelectorAll("section"));
-  console.log("🔍 Searching for Education section among", sections.length, "sections");
+// Get clean, de-duplicated visible text lines from an element.
+function textLines(el) {
+  if (!el) return [];
+  const seen = new Set();
+  return el.innerText
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => {
+      if (!l) return false;
+      const key = l.toLowerCase();
+      if (seen.has(key)) return false;  // LinkedIn duplicates lines for a11y
+      seen.add(key);
+      return true;
+    });
+}
 
-  const eduSection = sections.find(sec => {
-    const text = sec.innerText;
-    return text.includes("Education") && !text.includes("Experience");
+// Find the <section> for a given heading (e.g. "Education", "Volunteer").
+// LinkedIn nests sections and repeats words across them, so we rank candidates:
+// prefer the section whose heading line IS the keyword, then the smallest one
+// that actually contains profile entity items.
+function findProfileSection(keyword) {
+  const sections = Array.from(document.querySelectorAll("section"));
+  const kw = keyword.toLowerCase();
+
+  const candidates = sections.filter(sec => sec.innerText.toLowerCase().includes(kw));
+  if (candidates.length === 0) return null;
+
+  // Score: heading match is strongest; among those, smaller text = more specific.
+  candidates.sort((a, b) => {
+    const aHead = a.innerText.trim().toLowerCase().startsWith(kw) ? 0 : 1;
+    const bHead = b.innerText.trim().toLowerCase().startsWith(kw) ? 0 : 1;
+    if (aHead !== bHead) return aHead - bHead;
+    return a.innerText.length - b.innerText.length;
   });
 
+  // Prefer a candidate that has entity items; else fall back to the best-ranked.
+  const withItems = candidates.find(
+    sec => sec.querySelectorAll('[componentkey^="entity-collection-item"]').length > 0
+  );
+  return withItems || candidates[0];
+}
+
+function parseYears(text) {
+  const rangeMatch = text.match(/\b((?:19|20)\d{2})\s*[-–]\s*((?:19|20)\d{2}|present)\b/i);
+  if (rangeMatch) return `${rangeMatch[1]} - ${rangeMatch[2]}`;
+  const yearMatches = text.match(/\b(19|20)\d{2}\b/g);
+  return yearMatches && yearMatches.length ? yearMatches[yearMatches.length - 1] : "";
+}
+
+function getEducation() {
+  const eduSection = findProfileSection("Education");
   if (!eduSection) {
-    console.log("❌ No Education section found - checking section texts:");
-    sections.slice(0, 5).forEach((sec, i) => {
-      console.log(`  Section ${i}: ${sec.innerText.substring(0, 50)}...`);
-    });
+    console.log("❌ No Education section found");
     return null;
   }
-
   console.log("✅ Education section found");
 
-  // Find all education items in this section
-  const allItems = Array.from(eduSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
+  // Prefer the first entity item; fall back to parsing the section's text lines.
+  const items = Array.from(eduSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
+  const scope = items[0] || eduSection;
+  const allText = scope.innerText;
 
-  if (allItems.length === 0) {
-    console.log("❌ No education items found in Education section");
-    return null;
+  // School: from logo alt first, else first non-"Education" line.
+  const schoolImg = scope.querySelector('img[alt]');
+  let school = schoolImg?.alt?.replace(/ logo$/i, "").trim() || "";
+
+  let lines = textLines(scope).filter(l => l.toLowerCase() !== "education");
+  if (!school && lines.length) school = lines[0];
+
+  // Degree/field line: first line with a comma or a degree keyword, that isn't
+  // the school name or a pure date range.
+  const degreeKeywords = /\b(bachelor|master|associate|doctor|phd|mba|b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?a\.?|degree|engineering|science|arts|studies)\b/i;
+  const degreeFieldLine = lines.find(l =>
+    l !== school &&
+    !/^\d{4}\s*[-–]\s*(\d{4}|present)/i.test(l) &&
+    !/^(grade|activities|skills|grade:)/i.test(l) &&
+    (l.includes(",") || degreeKeywords.test(l))
+  ) || "";
+
+  let degree = "", field = "";
+  if (degreeFieldLine.includes(",")) {
+    const parts = degreeFieldLine.split(",");
+    degree = parts[0].trim();
+    field = parts.slice(1).join(",").trim();
+  } else {
+    field = degreeFieldLine.trim();
   }
 
-  // Use the first education item
-  const eduItem = allItems[0];
-  const allText = eduItem.innerText;
-
-  // Extract school name (usually first line or from image alt)
-  const schoolImg = eduItem.querySelector('img[alt]');
-  let school = schoolImg?.alt?.replace(/ logo$/i, '').trim() || '';
-
-  // Get all paragraphs - they usually contain: school, degree, field, dates
-  const paras = Array.from(eduItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
-
-  // If no school found from image, try first paragraph
-  if (!school && paras.length > 0) {
-    school = paras[0];
-  }
-
-  const degree = paras[1] || '';
-  const field = paras[2] || '';
-
-  // Find graduation year (look for 4-digit number that looks like a year)
-  let gradYear = '';
-  const yearMatches = allText.match(/\b(19|20)\d{2}\b/g);
-  if (yearMatches && yearMatches.length > 0) {
-    gradYear = yearMatches[yearMatches.length - 1];
-  }
-
-  const education = { school, degree, field };
-  if (gradYear) education.gradYear = gradYear;
+  const years = parseYears(allText);
+  const education = { school, degree, field, years };
 
   console.log("✅ Education extracted:", education);
-  return education;
+  // Only return something if we actually found a school or field.
+  return (school || field) ? education : null;
 }
 
 // Extract volunteer work with recency check (last 5 years)
 function getVolunteerWork() {
-  const sections = Array.from(document.querySelectorAll("section"));
-  console.log("🔍 Searching for Volunteer section among", sections.length, "sections");
-
-  const volSection = sections.find(sec => {
-    const text = sec.innerText;
-    return (text.includes("Volunteer") || text.includes("Causes")) && !text.includes("Experience");
-  });
-
+  const volSection = findProfileSection("Volunteer");
   if (!volSection) {
-    console.log("❌ No Volunteer section found - checking section texts:");
-    sections.slice(0, 5).forEach((sec, i) => {
-      console.log(`  Section ${i}: ${sec.innerText.substring(0, 50)}...`);
-    });
+    console.log("❌ No Volunteer section found");
     return null;
   }
-
   console.log("✅ Volunteer section found");
 
-  // Find all volunteer items in this section
-  const allItems = Array.from(volSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
+  // Prefer the first entity item; fall back to the section's text lines.
+  const items = Array.from(volSection.querySelectorAll('[componentkey^="entity-collection-item"]'));
+  const scope = items[0] || volSection;
+  const allText = scope.innerText;
 
-  if (allItems.length === 0) {
-    console.log("❌ No volunteer items found in Volunteer section");
+  const lines = textLines(scope).filter(l => !/^volunteer/i.test(l));
+  const role = lines[0] || '';
+  const org = lines[1] || '';
+
+  // Only surface volunteer work from the last 5 years (per requirements).
+  const currentYear = new Date().getFullYear();
+  let isRecent = false;
+  let years = '';
+
+  const rangeMatch = allText.match(/\b((?:19|20)\d{2})\s*[-–]\s*((?:19|20)\d{2}|Present)\b/i);
+  if (rangeMatch) years = `${rangeMatch[1]} - ${rangeMatch[2]}`;
+
+  const yearMatches = allText.match(/\b(19|20)\d{2}\b/g);
+  if (yearMatches && yearMatches.length > 0) {
+    if (!years) years = yearMatches[yearMatches.length - 1];
+    const latestYear = Math.max(...yearMatches.map(y => parseInt(y)));
+    if (currentYear - latestYear <= 5) isRecent = true;
+  }
+
+  // "Present" means ongoing, so it counts as recent.
+  if (/present/i.test(allText)) isRecent = true;
+
+  // No recency signal at all -> treat as not recent (don't display).
+  if (!isRecent) {
+    console.log("⏭️ Volunteer work found but not within last 5 years — skipping");
     return null;
   }
 
-  // Use the first volunteer item
-  const volItem = allItems[0];
-  const allText = volItem.innerText;
-
-  // Get all paragraphs - they usually contain: role, org, dates
-  const paras = Array.from(volItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
-
-  const role = paras[0] || '';
-  const org = paras[1] || '';
-
-  // Check if volunteer work is recent (within last 5 years)
-  const currentYear = new Date().getFullYear();
-  let isRecent = false;
-
-  // Look for date patterns
-  const yearMatches = allText.match(/\b(19|20)\d{2}\b/g);
-  if (yearMatches && yearMatches.length > 0) {
-    const latestYear = Math.max(...yearMatches.map(y => parseInt(y)));
-    if (currentYear - latestYear <= 5) {
-      isRecent = true;
-    }
-  }
-
-  // Also check for "Present"
-  if (allText.includes("Present")) {
-    isRecent = true;
-  }
-
-  const volunteer = { role, org, isRecent };
+  const volunteer = { role, org, years };
 
   console.log("✅ Volunteer work extracted:", volunteer);
   return volunteer;
@@ -325,10 +339,12 @@ function getProfileDataForPersonalization() {
   const currentRole = (experienceBlocks[0]?.title || basicData.title || '').trim();
   const currentCompany = (experienceBlocks[0]?.company || '').trim();
   const currentTenure = getYearsAtCompany(experienceBlocks[0]);
+  const currentDescription = (experienceBlocks[0]?.description || '').trim();
 
   const previousRole = (experienceBlocks[1]?.title || '').trim();
   const previousCompany = (experienceBlocks[1]?.company || '').trim();
   const previousTenure = getYearsAtCompany(experienceBlocks[1]);
+  const previousDescription = (experienceBlocks[1]?.description || '').trim();
 
   // Get education and volunteer info
   const education = getEducation();
@@ -341,9 +357,11 @@ function getProfileDataForPersonalization() {
     currentRole,
     currentCompany,
     currentTenure,
+    currentDescription,
     previousRole,
     previousCompany,
     previousTenure,
+    previousDescription,
     yearsInIndustry,
     education,
     volunteerWork,

@@ -12,12 +12,14 @@ Or if you want to use the existing package.json, just run:
 npm install
 ```
 
-### 2. Set your Claude API key
+### 2. Set your API keys
 ```bash
 export Claude=sk-ant-xxxxxxxxxxxxx
+export APOLLO_API_KEY=xxxxxxxxxxxxx
 ```
 
-(Replace with your actual API key from https://console.anthropic.com)
+- `Claude` — your key from https://console.anthropic.com (powers the message + recent-posts gist)
+- `APOLLO_API_KEY` — your Apollo.io key (powers the "what the company does" descriptions in Profile Overview)
 
 ### 3. Run the local server
 ```bash
@@ -28,9 +30,11 @@ You should see:
 ```
 ✅ Local server running on http://localhost:3000
 📝 Make sure Claude API key is set: export Claude=YOUR_KEY
+📝 For company descriptions: export APOLLO_API_KEY=YOUR_KEY
 🔗 Endpoints:
    POST http://localhost:3000/api/groq
    POST http://localhost:3000/api/personalize
+   POST http://localhost:3000/api/company-lookup
 ```
 
 ### 4. Switch the extension to use local API

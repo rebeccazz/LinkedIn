@@ -66,3 +66,44 @@ BAD: "saw your amazing post about productivity tips" (too long, too flattery)
 Output only the sentence. Must be under 100 chars.
 `;
 }
+
+// Condense a LinkedIn role description into a 7-10 word phrase of what they do.
+function buildCondenseRolePrompt(text) {
+  return `Condense the following LinkedIn role description into a single phrase of 7 to 10 words describing what this person does/did in the role.
+
+Rules:
+- Between 7 and 10 words. No more, no less.
+- Factual and specific. Keep concrete nouns (what they built, sold, led, grew).
+- No bullet points, no period at the end, no quotes.
+- Lowercase except proper nouns and acronyms.
+- Do NOT invent anything not in the text.
+
+Description: ${text}
+
+7-10 word phrase:`;
+}
+
+// Recent posts gist — summarize the person's latest posts into 3 sentences.
+// This is NOT an outreach line; it's a quick read on what they've been posting about.
+function buildPostSummaryPrompt(posts) {
+  const numbered = posts
+    .map((p, i) => `Post ${i + 1}${p.age ? ` (${p.age} ago)` : ""}: ${p.text}`)
+    .join("\n\n");
+
+  return `
+Summarize what this person has been posting about on LinkedIn recently.
+
+Their latest posts:
+${numbered}
+
+Rules:
+- Write EXACTLY 3 sentences. No more, no less.
+- Each sentence captures the gist/theme of their recent activity — not a quote of any single post.
+- Plain, factual, neutral tone. You are briefing someone before they reach out.
+- Do NOT write an outreach message or opener. Do NOT address the person.
+- Do NOT use flattery ("great", "insightful", "amazing").
+- If there's only one real theme, still write 3 sentences covering different angles of it.
+
+Output only the 3 sentences.
+`;
+}

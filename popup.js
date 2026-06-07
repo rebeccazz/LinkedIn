@@ -1,4 +1,8 @@
 // ===== 🔧 CONFIG =====
+// Switch this to http://localhost:3000 for local testing (see LOCAL_SETUP.md)
+const API_BASE_URL = "https://linked-in-nu-virid.vercel.app";  // Production
+// const API_BASE_URL = "http://localhost:3000";              // Local
+
 let currentProfileData = null;
 
 // Load custom message from storage on popup open
@@ -9,53 +13,163 @@ chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
   }
 });
 
-// Check if we're on a LinkedIn profile and enable personalization
+// Check if we're on a LinkedIn profile, enable personalization, and auto-load overview
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const url = tabs[0].url;
   if (url && url.includes("linkedin.com/in/")) {
     document.getElementById("personalization-section").style.display = "block";
+    loadProfileOverview();
   }
 });
 
-// Display profile data
-function displayProfileData(profileData) {
+// Escape user-controlled text before injecting into innerHTML.
+function esc(str) {
+  return String(str || "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+// Look up "what the company does" from Apollo via the backend (already 7-10 words).
+async function fetchCompanyDescription(companyName) {
+  if (!companyName) return "";
+  try {
+    const resp = await fetch(`${API_BASE_URL}/api/company-lookup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyName })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.warn("Company lookup error for", companyName, data);
+      return "";
+    }
+    return data.description || "";
+  } catch (err) {
+    console.warn("Company lookup failed for", companyName, err);
+    return "";
+  }
+}
+
+// Condense a raw LinkedIn role description into a 7-10 word phrase via Claude (/api/groq).
+async function condenseRole(text) {
+  if (!text || text.trim().length < 12) return "";
+  try {
+    const result = await callGemini(buildCondenseRolePrompt(text));
+    return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
+  } catch (err) {
+    console.warn("Role condense failed:", err);
+    return "";
+  }
+}
+
+// Render one role block: title, @ company • tenure, then two 7-10 word lines:
+//   📝 what they wrote on LinkedIn   |   🏢 what the company does (Apollo)
+function renderRole(label, role, company, tenure, linkedinDesc, apolloDesc) {
+  if (!role || !company) return "";
+  const yrs = tenure?.years;
+  const tenureText = (yrs || yrs === 0) ? ` • ${yrs} yr${yrs !== 1 ? "s" : ""}` : "";
+
+  let html = `<div style="margin-bottom: 4px;"><strong>${label}:</strong> ${esc(role)}</div>`;
+  html += `<div style="margin-left: 12px; color: #666;">@ ${esc(company)}${tenureText}</div>`;
+  if (linkedinDesc) {
+    html += `<div style="margin-left: 12px; margin-top: 3px; color: #444;">📝 ${esc(linkedinDesc)}</div>`;
+  }
+  if (apolloDesc) {
+    html += `<div style="margin-left: 12px; margin-top: 3px; color: #1a5490;">🏢 ${esc(apolloDesc)}</div>`;
+  }
+  html += `<div style="height: 10px;"></div>`;
+  return html;
+}
+
+// Display profile data. descriptions = {
+//   currentLinkedIn, currentApollo, previousLinkedIn, previousApollo } (all optional).
+function displayProfileData(profileData, descriptions = {}) {
   const detailsEl = document.getElementById("profile-details");
   let html = "";
 
-  // Current role
-  if (profileData.currentRole && profileData.currentCompany) {
-    const tenure = profileData.currentTenure?.years || '?';
-    html += `<div style="margin-bottom: 10px;"><strong>Current:</strong> ${profileData.currentRole}</div>`;
-    html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.currentCompany}${profileData.currentTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
-  }
+  html += renderRole(
+    "Current",
+    profileData.currentRole,
+    profileData.currentCompany,
+    profileData.currentTenure,
+    descriptions.currentLinkedIn,
+    descriptions.currentApollo
+  );
 
-  // Previous role
-  if (profileData.previousRole && profileData.previousCompany) {
-    const tenure = profileData.previousTenure?.years || '?';
-    html += `<div style="margin-bottom: 10px;"><strong>Previous:</strong> ${profileData.previousRole}</div>`;
-    html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.previousCompany}${profileData.previousTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
-  }
+  html += renderRole(
+    "Previous",
+    profileData.previousRole,
+    profileData.previousCompany,
+    profileData.previousTenure,
+    descriptions.previousLinkedIn,
+    descriptions.previousApollo
+  );
 
-  // Education
-  if (profileData.education && profileData.education.school) {
-    html += `<div style="margin-bottom: 8px;"><strong>Education:</strong> ${profileData.education.school}`;
-    if (profileData.education.degree) html += ` • ${profileData.education.degree}`;
-    if (profileData.education.field) html += ` (${profileData.education.field})`;
-    if (profileData.education.gradYear) html += ` • ${profileData.education.gradYear}`;
-    html += `</div>`;
+  // Education — field of study + years (any time)
+  const edu = profileData.education;
+  if (edu && (edu.school || edu.field)) {
+    let line = `<strong>📚 Education:</strong> `;
+    line += esc(edu.field || edu.degree || edu.school);
+    if (edu.field && edu.school) line += ` — ${esc(edu.school)}`;
+    if (edu.years) line += ` <span style="color: #999;">(${esc(edu.years)})</span>`;
+    html += `<div style="margin-bottom: 8px;">${line}</div>`;
   } else {
     html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">📚 Education: Not found</div>`;
   }
 
-  // Volunteer work (last 5 years)
-  if (profileData.volunteerWork && profileData.volunteerWork.org) {
-    const recency = profileData.volunteerWork.isRecent ? '✓ Recent' : 'Older';
-    html += `<div style="margin-bottom: 8px;"><strong>Volunteer:</strong> ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org} <span style="color: #999;">(${recency})</span></div>`;
-  } else {
-    html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">🤝 Volunteer: Not found</div>`;
+  // Volunteer — only shown when within the last 5 years (content.js returns null otherwise)
+  const vol = profileData.volunteerWork;
+  if (vol && vol.org) {
+    let line = `<strong>🤝 Volunteer:</strong> ${esc(vol.role)} at ${esc(vol.org)}`;
+    if (vol.years) line += ` <span style="color: #999;">(${esc(vol.years)})</span>`;
+    html += `<div style="margin-bottom: 8px;">${line}</div>`;
   }
 
   detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Profile details unavailable</div>";
+}
+
+// Load the profile overview: render scraped data immediately, then fill in
+// Apollo company descriptions as they arrive.
+async function loadProfileOverview() {
+  const detailsEl = document.getElementById("profile-details");
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const profileData = await chrome.tabs.sendMessage(tab.id, {
+      type: "GET_PROFILE_FOR_PERSONALIZATION"
+    });
+    currentProfileData = profileData;
+
+    // First paint: roles + education/volunteer show immediately; the two
+    // 7-10 word description lines fill in once Claude/Apollo respond.
+    displayProfileData(profileData);
+
+    const samePrevCompany =
+      profileData.previousCompany &&
+      profileData.previousCompany !== profileData.currentCompany;
+
+    // Run all four distillations in parallel:
+    //   📝 LinkedIn role text -> 7-10 words (via Claude /api/groq)
+    //   🏢 company -> 7-10 words (via Apollo /api/company-lookup)
+    const [currentLinkedIn, previousLinkedIn, currentApollo, previousApollo] =
+      await Promise.all([
+        condenseRole(profileData.currentDescription),
+        condenseRole(profileData.previousDescription),
+        fetchCompanyDescription(profileData.currentCompany),
+        samePrevCompany
+          ? fetchCompanyDescription(profileData.previousCompany)
+          : Promise.resolve("")
+      ]);
+
+    displayProfileData(profileData, {
+      currentLinkedIn,
+      previousLinkedIn,
+      currentApollo,
+      previousApollo
+    });
+  } catch (err) {
+    console.warn("Could not load profile overview:", err);
+    detailsEl.innerHTML = "<div style='color: #999; font-size: 12px;'>Open a LinkedIn profile, then reopen this popup.</div>";
+  }
 }
 
 
@@ -70,44 +184,29 @@ document.getElementById("closing-message").addEventListener("input", () => {
   }, 500);
 });
 
-// Update display with closing message appended
+// Update display with closing message appended.
+// Only Option 1 is an outreach message; Option 2 is the recent-posts gist
+// (context, not a message), so the closing is never appended to it.
 function updateOptionDisplay() {
   const closingText = document.getElementById("closing-message").value.trim();
   const option1Base = document.getElementById("option1-output").getAttribute("data-base-text") || "";
-  const option2Base = document.getElementById("option2-output").getAttribute("data-base-text") || "";
-
   const option1Full = closingText ? `${option1Base} ${closingText}` : option1Base;
-  const option2Full = closingText ? `${option2Base} ${closingText}` : option2Base;
-
   document.getElementById("option1-output").innerText = option1Full;
-  document.getElementById("option2-output").innerText = option2Full;
 }
 
-// Update character count
+// Update character count (Option 1 only — the sendable message).
 function updateCharCount() {
   const closingText = document.getElementById("closing-message").value;
   const option1Base = document.getElementById("option1-output").getAttribute("data-base-text") || "";
-  const option2Base = document.getElementById("option2-output").getAttribute("data-base-text") || "";
-
   const totalOpt1 = option1Base.length + (closingText ? 1 + closingText.length : 0);
-  const totalOpt2 = option2Base.length + (closingText ? 1 + closingText.length : 0);
 
   const opt1CountEl = document.getElementById("option1-count");
-  const opt2CountEl = document.getElementById("option2-count");
-
   opt1CountEl.innerText = `${totalOpt1} / 300`;
-  opt2CountEl.innerText = `${totalOpt2} / 300`;
 
   if (totalOpt1 > 300) {
     opt1CountEl.classList.add("warning");
   } else {
     opt1CountEl.classList.remove("warning");
-  }
-
-  if (totalOpt2 > 300) {
-    opt2CountEl.classList.add("warning");
-  } else {
-    opt2CountEl.classList.remove("warning");
   }
 }
 
@@ -128,7 +227,7 @@ function extractExperience(experienceBlocks) {
 
 // ===== 🔧 3. Backend API call =====
 async function callGemini(prompt) {
-  const response = await fetch("https://linked-in-nu-virid.vercel.app/api/groq", {
+  const response = await fetch(`${API_BASE_URL}/api/groq`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -192,11 +291,11 @@ document.getElementById("generate-personalization").onclick = async () => {
 
     console.log("📊 Full profile data:", profileData);
 
-    // Display the profile data
-    displayProfileData(profileData);
+    // Profile overview (with Apollo descriptions) is loaded on popup open; we
+    // don't re-render it here so we don't wipe the enriched company descriptions.
 
     // Generate opener
-    const response = await fetch("https://linked-in-nu-virid.vercel.app/api/personalize", {
+    const response = await fetch(`${API_BASE_URL}/api/personalize`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -276,22 +375,22 @@ document.getElementById("generate").onclick = async () => {
     document.getElementById("option1-output").style.display = "inline-block";
     document.getElementById("option1-copy").style.display = "inline-block";
 
-    // Generate Option 2 (recent post/comment)
-    let option2Text = "No posts or comments within 3 months found";
+    // Generate Option 2 — gist of their latest (up to 3) posts in 3 sentences.
+    let option2Text = "No recent posts found";
     if (profile.recentActivity && profile.recentActivity.length > 0) {
-      const firstActivity = profile.recentActivity[0];
-      const option2Prompt = buildInsightPrompt(firstActivity.text);
+      const posts = profile.recentActivity.slice(0, 3);
+      const option2Prompt = buildPostSummaryPrompt(posts);
       const option2Result = await callGemini(option2Prompt);
-      option2Text = option2Result
-        .replace(/^"|"$/g, "")
-        .replace(/\n/g, " ")
-        .trim();
-      option2Text = `Hi ${firstName}, ${option2Text}`;
+      option2Text = option2Result.replace(/^"|"$/g, "").trim();
       document.getElementById("option2-copy").style.display = "inline-block";
     }
 
-    document.getElementById("option2-output").setAttribute("data-base-text", option2Text);
-    document.getElementById("option2-output").style.display = "inline-block";
+    // Option 2 is context (the gist), not a sendable message, so set it
+    // directly rather than going through the closing-message append logic.
+    const option2El = document.getElementById("option2-output");
+    option2El.removeAttribute("data-base-text");
+    option2El.innerText = option2Text;
+    option2El.style.display = "inline-block";
 
     updateCharCount();
     updateOptionDisplay();

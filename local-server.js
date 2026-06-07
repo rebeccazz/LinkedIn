@@ -212,6 +212,129 @@ Generate ONE opener. Output ONLY the text, nothing else.
 `;
 }
 
+// ===== COMPANY LOOKUP ENDPOINT (Apollo "what the company does") =====
+function firstSentence(text) {
+  if (!text) return "";
+  const clean = text.replace(/\s+/g, " ").trim();
+  const match = clean.match(/^.*?[.!?](\s|$)/);
+  let sentence = match ? match[0].trim() : clean;
+  if (sentence.length > 160) sentence = sentence.slice(0, 157).trim() + "…";
+  return sentence;
+}
+
+function extractDomain(websiteUrl) {
+  if (!websiteUrl) return "";
+  try {
+    const url = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`;
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return websiteUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+  }
+}
+
+async function apolloEnrichByDomain(domain, apolloApiKey) {
+  if (!domain) return null;
+  const resp = await fetch(
+    `https://api.apollo.io/v1/organizations/enrich?domain=${encodeURIComponent(domain)}`,
+    { method: "GET", headers: { "Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": apolloApiKey } }
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  return data.organization || null;
+}
+
+async function distillDescription(name, description, claudeApiKey) {
+  if (!description) return "";
+  if (!claudeApiKey) return firstSentence(description);
+
+  const prompt = `In 7 to 10 words, say what this company does. Be specific and factual. No fluff, no period, no quotes. Return ONLY the phrase.
+
+Company: ${name}
+Description: ${description}
+
+7-10 word phrase:`;
+
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": claudeApiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "claude-opus-4-8", max_tokens: 40, messages: [{ role: "user", content: prompt }] })
+    });
+    const data = await resp.json();
+    const text = data.content?.[0]?.text?.trim().replace(/^"|"$/g, "");
+    return text || firstSentence(description);
+  } catch (err) {
+    console.error("Claude distill failed:", err);
+    return firstSentence(description);
+  }
+}
+
+app.post('/api/company-lookup', async (req, res) => {
+  const { companyName } = req.body;
+
+  if (!companyName) {
+    return res.status(400).json({ error: "Missing companyName" });
+  }
+
+  const apolloApiKey = process.env.APOLLO_API_KEY;
+  const claudeApiKey = process.env.Claude;
+
+  if (!apolloApiKey) {
+    return res.status(500).json({ error: "Apollo API key not configured - set APOLLO_API_KEY env var" });
+  }
+
+  try {
+    const apolloResponse = await fetch("https://api.apollo.io/v1/mixed_companies/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": apolloApiKey },
+      body: JSON.stringify({ q_organization_name: companyName, page: 1, per_page: 1 })
+    });
+
+    const apolloData = await apolloResponse.json();
+
+    if (!apolloResponse.ok) {
+      console.error("Apollo search error:", apolloResponse.status, apolloData);
+      return res.status(502).json({
+        error: "Apollo API error",
+        apolloStatus: apolloResponse.status,
+        apolloMessage: apolloData?.error || apolloData?.message || JSON.stringify(apolloData),
+        companyName
+      });
+    }
+
+    const organizations = apolloData.organizations || apolloData.accounts || [];
+    if (organizations.length === 0) {
+      return res.status(404).json({ error: "Company not found on Apollo.io", companyName });
+    }
+
+    let company = organizations[0];
+    let description = company.short_description || company.description || "";
+
+    if (!description) {
+      const domain = company.primary_domain || extractDomain(company.website_url);
+      const enriched = await apolloEnrichByDomain(domain, apolloApiKey);
+      if (enriched) {
+        company = enriched;
+        description = enriched.short_description || enriched.description || "";
+      }
+    }
+
+    const distilled = await distillDescription(company.name || companyName, description, claudeApiKey);
+
+    return res.status(200).json({
+      companyName: company.name || companyName,
+      description: distilled,
+      fullDescription: description,
+      website: company.website_url || "",
+      industry: company.industry || "",
+      employees: company.estimated_num_employees || ""
+    });
+  } catch (error) {
+    console.error("Error looking up company:", error);
+    return res.status(500).json({ error: "Failed to lookup company", message: error.message });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Local server running' });
@@ -221,7 +344,9 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Local server running on http://localhost:${PORT}`);
   console.log(`📝 Make sure Claude API key is set: export Claude=YOUR_KEY`);
+  console.log(`📝 For company descriptions: export APOLLO_API_KEY=YOUR_KEY`);
   console.log(`🔗 Endpoints:`);
   console.log(`   POST http://localhost:${PORT}/api/groq`);
   console.log(`   POST http://localhost:${PORT}/api/personalize`);
+  console.log(`   POST http://localhost:${PORT}/api/company-lookup`);
 });
