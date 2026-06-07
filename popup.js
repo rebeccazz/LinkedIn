@@ -18,52 +18,22 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 });
 
 // Display profile data
-async function displayProfileData(profileData) {
+function displayProfileData(profileData) {
   const detailsEl = document.getElementById("profile-details");
   let html = "";
-
-  console.log("🔧 displayProfileData called with:", profileData);
 
   // Current role
   if (profileData.currentRole && profileData.currentCompany) {
     const tenure = profileData.currentTenure?.years || '?';
     html += `<div style="margin-bottom: 10px;"><strong>Current:</strong> ${profileData.currentRole}</div>`;
-    html += `<div style="margin-left: 12px; margin-bottom: 5px; color: #666;">@ ${profileData.currentCompany}${profileData.currentTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
-
-    // Fetch company info
-    console.log("🌐 Fetching company info for:", profileData.currentCompany);
-    const currentCompanyInfo = await fetchCompanyInfo(profileData.currentCompany);
-    console.log("📦 Current company info result:", currentCompanyInfo);
-
-    if (currentCompanyInfo) {
-      html += `<div style="margin-left: 12px; margin-bottom: 10px; font-size: 11px; color: #888; font-style: italic;">${currentCompanyInfo.summary7words || '(no summary)'}</div>`;
-      if (currentCompanyInfo.apolloDescription) {
-        html += `<div style="margin-left: 12px; margin-bottom: 10px; font-size: 11px; color: #999; line-height: 1.4;">${currentCompanyInfo.apolloDescription.substring(0, 120)}...</div>`;
-      }
-    } else {
-      html += `<div style="margin-left: 12px; margin-bottom: 10px; font-size: 11px; color: #d9534f;">⚠️ Company lookup failed</div>`;
-    }
+    html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.currentCompany}${profileData.currentTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
   }
 
   // Previous role
   if (profileData.previousRole && profileData.previousCompany) {
     const tenure = profileData.previousTenure?.years || '?';
     html += `<div style="margin-bottom: 10px;"><strong>Previous:</strong> ${profileData.previousRole}</div>`;
-    html += `<div style="margin-left: 12px; margin-bottom: 5px; color: #666;">@ ${profileData.previousCompany}${profileData.previousTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
-
-    // Fetch company info
-    console.log("🌐 Fetching company info for:", profileData.previousCompany);
-    const previousCompanyInfo = await fetchCompanyInfo(profileData.previousCompany);
-    console.log("📦 Previous company info result:", previousCompanyInfo);
-
-    if (previousCompanyInfo) {
-      html += `<div style="margin-left: 12px; margin-bottom: 10px; font-size: 11px; color: #888; font-style: italic;">${previousCompanyInfo.summary7words || '(no summary)'}</div>`;
-      if (previousCompanyInfo.apolloDescription) {
-        html += `<div style="margin-left: 12px; margin-bottom: 10px; font-size: 11px; color: #999; line-height: 1.4;">${previousCompanyInfo.apolloDescription.substring(0, 120)}...</div>`;
-      }
-    } else {
-      html += `<div style="margin-left: 12px; margin-bottom: 10px; font-size: 11px; color: #d9534f;">⚠️ Company lookup failed</div>`;
-    }
+    html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.previousCompany}${profileData.previousTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
   }
 
   // Education
@@ -73,57 +43,17 @@ async function displayProfileData(profileData) {
     if (profileData.education.field) html += ` (${profileData.education.field})`;
     if (profileData.education.gradYear) html += ` • ${profileData.education.gradYear}`;
     html += `</div>`;
-  } else {
-    html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">📚 Education: Not found on profile</div>`;
   }
 
   // Volunteer work (last 5 years)
   if (profileData.volunteerWork && profileData.volunteerWork.org) {
     const recency = profileData.volunteerWork.isRecent ? '✓ Recent' : 'Older';
     html += `<div style="margin-bottom: 8px;"><strong>Volunteer:</strong> ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org} <span style="color: #999;">(${recency})</span></div>`;
-  } else {
-    html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">🤝 Volunteer: Not found on profile</div>`;
   }
 
-  console.log("✅ displayProfileData complete. HTML:", html);
-  detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>No details found</div>";
+  detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Profile details unavailable</div>";
 }
 
-// Fetch company info from Apollo.io
-async function fetchCompanyInfo(companyName) {
-  try {
-    console.log(`🔄 Calling /api/company-lookup for: ${companyName}`);
-
-    const response = await fetch("https://linked-in-nu-virid.vercel.app/api/company-lookup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ companyName })
-    });
-
-    console.log(`📡 Response status for ${companyName}:`, response.status, response.ok);
-
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch {
-        errorData = await response.text();
-      }
-      console.error(`❌ API Error (${response.status}) for ${companyName}:`, errorData);
-      console.error(`Full response:`, errorData);
-      return null;
-    }
-
-    const data = await response.json();
-    console.log(`✅ Company data for ${companyName}:`, data);
-    return data;
-  } catch (err) {
-    console.error(`❌ Network/Parse error for ${companyName}:`, err.message, err);
-    return null;
-  }
-}
 
 // Auto-save custom message (debounced) and update display
 let saveTimeout;
