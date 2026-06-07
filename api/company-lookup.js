@@ -13,6 +13,14 @@ function firstSentence(text) {
   return sentence;
 }
 
+// Pull the company slug out of a LinkedIn company URL, e.g.
+// "https://www.linkedin.com/company/calcu/" -> "calcu".
+function linkedinSlug(url) {
+  if (!url) return "";
+  const m = url.match(/\/company\/([^\/?#]+)/i);
+  return m ? decodeURIComponent(m[1]).toLowerCase() : "";
+}
+
 function extractDomain(websiteUrl) {
   if (!websiteUrl) return "";
   try {
@@ -90,7 +98,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { companyName } = req.body;
+  const { companyName, companyUrl } = req.body;
 
   if (!companyName) {
     return res.status(400).json({ error: "Missing companyName" });
@@ -104,7 +112,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Step 1: Find the organization by name.
+    // Step 1: Search by name, asking for several matches so we can disambiguate.
     const apolloResponse = await fetch("https://api.apollo.io/v1/mixed_companies/search", {
       method: "POST",
       headers: {
@@ -115,7 +123,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         q_organization_name: companyName,
         page: 1,
-        per_page: 1
+        per_page: 10
       })
     });
 
@@ -137,10 +145,18 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: "Company not found on Apollo.io", companyName });
     }
 
-    let company = organizations[0];
+    // Step 2: Disambiguate. If we have the profile's LinkedIn company URL, pick
+    // the Apollo result whose linkedin_url matches that exact /company/<slug>;
+    // otherwise fall back to Apollo's top (most prominent) match.
+    const wantSlug = linkedinSlug(companyUrl);
+    let company =
+      (wantSlug && organizations.find(o => linkedinSlug(o.linkedin_url) === wantSlug)) ||
+      organizations[0];
+    const matchedByUrl = wantSlug && linkedinSlug(company.linkedin_url) === wantSlug;
+
     let description = company.short_description || company.description || "";
 
-    // Step 2: Search results often omit the description. If so, enrich by domain.
+    // Step 3: Search results often omit the description. If so, enrich by domain.
     if (!description) {
       const domain = company.primary_domain || extractDomain(company.website_url);
       const enriched = await apolloEnrichByDomain(domain, apolloApiKey);
@@ -150,13 +166,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // Step 3: Distill to a 7-10 word phrase (per requirements).
+    // Step 4: Distill to a 7-10 word phrase (per requirements).
     const distilled = await distillDescription(company.name || companyName, description, claudeApiKey);
 
     return res.status(200).json({
       companyName: company.name || companyName,
       description: distilled,
       fullDescription: description,
+      matchedByUrl: !!matchedByUrl,
+      linkedinUrl: company.linkedin_url || "",
       website: company.website_url || "",
       industry: company.industry || "",
       employees: company.estimated_num_employees || ""

@@ -30,13 +30,14 @@ function esc(str) {
 }
 
 // Look up "what the company does" from Apollo via the backend (already 7-10 words).
-async function fetchCompanyDescription(companyName) {
+// companyUrl is the LinkedIn /company/<slug> link, used to disambiguate the match.
+async function fetchCompanyDescription(companyName, companyUrl = "") {
   if (!companyName) return "";
   try {
     const resp = await fetch(`${API_BASE_URL}/api/company-lookup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyName })
+      body: JSON.stringify({ companyName, companyUrl })
     });
     const data = await resp.json();
     if (!resp.ok) {
@@ -164,9 +165,9 @@ async function loadProfileOverview(profileData) {
       await Promise.all([
         condenseRole(profileData.currentDescription),
         condenseRole(profileData.previousDescription),
-        fetchCompanyDescription(profileData.currentCompany),
+        fetchCompanyDescription(profileData.currentCompany, profileData.currentCompanyUrl),
         samePrevCompany
-          ? fetchCompanyDescription(profileData.previousCompany)
+          ? fetchCompanyDescription(profileData.previousCompany, profileData.previousCompanyUrl)
           : Promise.resolve("")
       ]);
 

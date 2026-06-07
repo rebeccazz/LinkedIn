@@ -21,6 +21,11 @@ function getExperienceBlocks() {
     const company = companyImg?.alt?.replace(/ logo$/i, '').trim() || '';
     if (!company) continue;
 
+    // The company's LinkedIn page link (/company/<slug>) — used to disambiguate
+    // the Apollo lookup so a small startup name doesn't match the wrong company.
+    const companyLink = item.querySelector('a[href*="/company/"]');
+    const companyUrl = companyLink?.href || '';
+
     let title = '', date = '', description = '';
 
     const list = item.querySelector('ul');
@@ -42,7 +47,7 @@ function getExperienceBlocks() {
       description = item.querySelector('[data-testid="expandable-text-box"]')?.innerText?.trim() || '';
     }
 
-    results.push({ company, title, date, description });
+    results.push({ company, companyUrl, title, date, description });
     if (results.length === 2) break;
   }
 
@@ -298,11 +303,13 @@ function getProfileDataForPersonalization() {
   // Get current and previous roles with tenure
   const currentRole = (experienceBlocks[0]?.title || basicData.title || '').trim();
   const currentCompany = (experienceBlocks[0]?.company || '').trim();
+  const currentCompanyUrl = (experienceBlocks[0]?.companyUrl || '').trim();
   const currentTenure = getYearsAtCompany(experienceBlocks[0]);
   const currentDescription = (experienceBlocks[0]?.description || '').trim();
 
   const previousRole = (experienceBlocks[1]?.title || '').trim();
   const previousCompany = (experienceBlocks[1]?.company || '').trim();
+  const previousCompanyUrl = (experienceBlocks[1]?.companyUrl || '').trim();
   const previousTenure = getYearsAtCompany(experienceBlocks[1]);
   const previousDescription = (experienceBlocks[1]?.description || '').trim();
 
@@ -315,10 +322,12 @@ function getProfileDataForPersonalization() {
     lastName,
     currentRole,
     currentCompany,
+    currentCompanyUrl,
     currentTenure,
     currentDescription,
     previousRole,
     previousCompany,
+    previousCompanyUrl,
     previousTenure,
     previousDescription,
     yearsInIndustry,

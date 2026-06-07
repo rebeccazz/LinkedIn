@@ -232,6 +232,12 @@ function extractDomain(websiteUrl) {
   }
 }
 
+function linkedinSlug(url) {
+  if (!url) return "";
+  const m = url.match(/\/company\/([^\/?#]+)/i);
+  return m ? decodeURIComponent(m[1]).toLowerCase() : "";
+}
+
 async function apolloEnrichByDomain(domain, apolloApiKey) {
   if (!domain) return null;
   const resp = await fetch(
@@ -270,7 +276,7 @@ Description: ${description}
 }
 
 app.post('/api/company-lookup', async (req, res) => {
-  const { companyName } = req.body;
+  const { companyName, companyUrl } = req.body;
 
   if (!companyName) {
     return res.status(400).json({ error: "Missing companyName" });
@@ -287,7 +293,7 @@ app.post('/api/company-lookup', async (req, res) => {
     const apolloResponse = await fetch("https://api.apollo.io/v1/mixed_companies/search", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": apolloApiKey },
-      body: JSON.stringify({ q_organization_name: companyName, page: 1, per_page: 1 })
+      body: JSON.stringify({ q_organization_name: companyName, page: 1, per_page: 10 })
     });
 
     const apolloData = await apolloResponse.json();
@@ -307,7 +313,13 @@ app.post('/api/company-lookup', async (req, res) => {
       return res.status(404).json({ error: "Company not found on Apollo.io", companyName });
     }
 
-    let company = organizations[0];
+    // Disambiguate by the profile's LinkedIn company URL when available.
+    const wantSlug = linkedinSlug(companyUrl);
+    let company =
+      (wantSlug && organizations.find(o => linkedinSlug(o.linkedin_url) === wantSlug)) ||
+      organizations[0];
+    const matchedByUrl = wantSlug && linkedinSlug(company.linkedin_url) === wantSlug;
+
     let description = company.short_description || company.description || "";
 
     if (!description) {
@@ -325,6 +337,8 @@ app.post('/api/company-lookup', async (req, res) => {
       companyName: company.name || companyName,
       description: distilled,
       fullDescription: description,
+      matchedByUrl: !!matchedByUrl,
+      linkedinUrl: company.linkedin_url || "",
       website: company.website_url || "",
       industry: company.industry || "",
       employees: company.estimated_num_employees || ""
