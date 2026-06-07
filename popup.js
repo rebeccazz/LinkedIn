@@ -105,16 +105,22 @@ async function fetchCompanyInfo(companyName) {
     console.log(`📡 Response status for ${companyName}:`, response.status, response.ok);
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error(`❌ Company lookup failed for ${companyName}:`, errorData);
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = await response.text();
+      }
+      console.error(`❌ API Error (${response.status}) for ${companyName}:`, errorData);
+      console.error(`Full response:`, errorData);
       return null;
     }
 
     const data = await response.json();
-    console.log(`✅ Company data received for ${companyName}:`, data);
+    console.log(`✅ Company data for ${companyName}:`, data);
     return data;
   } catch (err) {
-    console.error(`❌ Error fetching company info for ${companyName}:`, err);
+    console.error(`❌ Network/Parse error for ${companyName}:`, err.message, err);
     return null;
   }
 }
