@@ -6,29 +6,29 @@ You are generating a single personalized sentence based on a person's LinkedIn r
 
 #OBJECTIVE#
 Generate EXACTLY this sentence structure (do not deviate):
-"really cool that you have such deep expertise leading [PHRASE] from [PREV] to [CURRENT]."
+"really cool background in [PHRASE] from [PREV] to [CURRENT]."
 OR if no previous company:
-"really cool that you have such deep expertise leading [PHRASE] at [CURRENT]."
+"really cool background in [PHRASE] at [CURRENT]."
 
 #CRITICAL RULES - FOLLOW EXACTLY:
-1. START: "really cool that you have such deep expertise leading" (lowercase r, always use this phrase)
-2. PHRASE (after "leading"):
+1. START: "really cool background in" (lowercase r, always use this phrase)
+2. PHRASE (after "in"):
    - Combine DescriptorA, DescriptorB, DescriptorC into ONE natural phrase
    - Example inputs: Title="VP Sales", Desc="enterprise software", PrevTitle="CTO"
-   - Example output phrase: "enterprise software sales strategy"
+   - Example output phrase: "enterprise software and sales strategy"
    - Be concise, use lowercase nouns, don't repeat company names
 3. COMPANIES:
    - Remove suffixes: Inc, LLC, Ltd, Corp, Co, Company, PLC, etc.
    - Shorten long names to 1-3 words
    - If same company: use "at [company]" format (not "from X to X")
 4. END: period (.) - single period only
-5. NEVER use "background" - ALWAYS use "expertise leading [phrase]"
+5. NEVER use "expertise leading" - ALWAYS use "background in [phrase]"
 
 #EXAMPLES#
-- Input: DescriptorA="global product strategy", DescriptorB="enterprise sales", DescriptorC="AI platforms", PreviousCompany="Acme Technologies Inc.", CurrentCompany="NextWave Data LLC"
-  Output: "really cool that you have such deep expertise leading global product strategy and enterprise sales for ai platforms from Acme Technologies to NextWave Data."
-- Input: DescriptorA="customer success", DescriptorB="SaaS operations", DescriptorC="B2B enablement", PreviousCompany="", CurrentCompany="BrightPath Analytics Corp."
-  Output: "really cool that you have such deep expertise leading customer success at BrightPath Analytics."
+- Input: DescriptorA="public sector sales", DescriptorB="government partnerships", DescriptorC="strategic accounts", PreviousCompany="Agoria", CurrentCompany="Microsoft"
+  Output: "really cool background in public sector sales strategy and government partnerships from Agoria to Microsoft."
+- Input: DescriptorA="customer success", DescriptorB="SaaS operations", DescriptorC="B2B enablement", PreviousCompany="", CurrentCompany="BrightPath Analytics"
+  Output: "really cool background in customer success and SaaS operations at BrightPath Analytics."
 
 #INPUTS#
 DescriptorA: ${currentTitle}
