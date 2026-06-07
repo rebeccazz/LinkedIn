@@ -83,6 +83,21 @@ Description: ${text}
 7-10 word phrase:`;
 }
 
+// Condense a company's description (from its LinkedIn page) into 7-10 words.
+function buildCondenseCompanyPrompt(text) {
+  return `In 7 to 10 words, say what this company does, based only on the text below.
+
+Rules:
+- Between 7 and 10 words. No more, no less.
+- Specific and factual. Keep concrete nouns (product, industry, who they serve).
+- No fluff, no period at the end, no quotes.
+- Do NOT invent anything not in the text.
+
+Company text: ${text}
+
+7-10 word phrase:`;
+}
+
 // Recent posts gist — summarize the person's latest posts into 3 sentences.
 // This is NOT an outreach line; it's a quick read on what they've been posting about.
 function buildPostSummaryPrompt(posts) {

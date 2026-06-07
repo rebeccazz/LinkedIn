@@ -287,8 +287,50 @@ function getProfileData() {
   };
 }
 
+// Fetch a company's description straight from its LinkedIn page. We're already
+// on linkedin.com and logged in, so this same-origin, credentialed request
+// returns the authenticated page — and the company's real "about" text lives in
+// the og:description / description meta tags. This is the exact company (no
+// name-matching), unlike Apollo.
+async function fetchLinkedInCompanyDescription(companyUrl) {
+  if (!companyUrl || !/\/company\//i.test(companyUrl)) return "";
+  try {
+    const base = companyUrl.split("?")[0].replace(/\/$/, "");
+    const aboutUrl = /\/company\/[^\/]+$/.test(base) ? `${base}/about/` : base;
+
+    const resp = await fetch(aboutUrl, { credentials: "include" });
+    if (!resp.ok) {
+      console.warn("Company page fetch not ok:", resp.status, aboutUrl);
+      return "";
+    }
+    const html = await resp.text();
+
+    const meta =
+      html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i) ||
+      html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+    if (!meta) return "";
+
+    let desc = meta[1]
+      .replace(/&amp;/g, "&")
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&nbsp;/g, " ");
+
+    // Strip the "Company | 1,234 followers on LinkedIn." lead-in.
+    desc = desc.replace(/^.*?followers on LinkedIn\.?\s*/i, "").trim();
+    console.log("✅ LinkedIn company description:", companyUrl, "→", desc.slice(0, 120));
+    return desc;
+  } catch (e) {
+    console.warn("LinkedIn company fetch failed:", e);
+    return "";
+  }
+}
+
 // Extended profile data for personalization
-function getProfileDataForPersonalization() {
+async function getProfileDataForPersonalization() {
   const basicData = getProfileData();
   const experienceBlocks = basicData.experienceBlocks || [];
 
@@ -317,17 +359,26 @@ function getProfileDataForPersonalization() {
   const education = getEducation([currentCompany, previousCompany]);
   const yearsInIndustry = calculateYearsInIndustry(experienceBlocks);
 
+  // What each company does, straight from its LinkedIn page (exact company).
+  const samePrevCompany = previousCompany && previousCompany !== currentCompany;
+  const [currentCompanyLinkedinDesc, previousCompanyLinkedinDesc] = await Promise.all([
+    fetchLinkedInCompanyDescription(currentCompanyUrl),
+    samePrevCompany ? fetchLinkedInCompanyDescription(previousCompanyUrl) : Promise.resolve("")
+  ]);
+
   const profileData = {
     firstName,
     lastName,
     currentRole,
     currentCompany,
     currentCompanyUrl,
+    currentCompanyLinkedinDesc,
     currentTenure,
     currentDescription,
     previousRole,
     previousCompany,
     previousCompanyUrl,
+    previousCompanyLinkedinDesc,
     previousTenure,
     previousDescription,
     yearsInIndustry,
@@ -346,6 +397,11 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.type === "GET_PROFILE") {
     sendResponse(getProfileData());
   } else if (req.type === "GET_PROFILE_FOR_PERSONALIZATION") {
-    sendResponse(getProfileDataForPersonalization());
+    // Async (fetches company pages) — keep the message channel open with `return true`.
+    getProfileDataForPersonalization().then(sendResponse).catch(err => {
+      console.error("getProfileDataForPersonalization failed:", err);
+      sendResponse(null);
+    });
+    return true;
   }
 });

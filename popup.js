@@ -63,6 +63,28 @@ async function condenseRole(text) {
   }
 }
 
+// Condense a company's LinkedIn description into a 7-10 word phrase via Claude.
+async function condenseCompany(text) {
+  if (!text || text.trim().length < 12) return "";
+  try {
+    const result = await callGemini(buildCondenseCompanyPrompt(text));
+    return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
+  } catch (err) {
+    console.warn("Company condense failed:", err);
+    return "";
+  }
+}
+
+// "What the company does" in 7-10 words. Prefer the company's own LinkedIn page
+// (exact company); fall back to Apollo only when LinkedIn gave us nothing.
+async function getCompanyDescription(companyName, companyUrl, linkedinDesc) {
+  if (linkedinDesc && linkedinDesc.trim()) {
+    const condensed = await condenseCompany(linkedinDesc);
+    if (condensed) return condensed;
+  }
+  return fetchCompanyDescription(companyName, companyUrl);
+}
+
 // Render one role block: title, @ company • tenure, then two 7-10 word lines:
 //   📝 what they wrote on LinkedIn   |   🏢 what the company does (Apollo)
 function renderRole(label, role, company, tenure, linkedinDesc, apolloDesc) {
@@ -165,9 +187,17 @@ async function loadProfileOverview(profileData) {
       await Promise.all([
         condenseRole(profileData.currentDescription),
         condenseRole(profileData.previousDescription),
-        fetchCompanyDescription(profileData.currentCompany, profileData.currentCompanyUrl),
+        getCompanyDescription(
+          profileData.currentCompany,
+          profileData.currentCompanyUrl,
+          profileData.currentCompanyLinkedinDesc
+        ),
         samePrevCompany
-          ? fetchCompanyDescription(profileData.previousCompany, profileData.previousCompanyUrl)
+          ? getCompanyDescription(
+              profileData.previousCompany,
+              profileData.previousCompanyUrl,
+              profileData.previousCompanyLinkedinDesc
+            )
           : Promise.resolve("")
       ]);
 
