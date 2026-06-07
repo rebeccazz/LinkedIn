@@ -4,33 +4,69 @@ const API_BASE_URL = "https://linked-in-nu-virid.vercel.app";  // Production
 // const API_BASE_URL = "http://localhost:3000";              // Local
 
 let currentProfileData = null;
+let saveTimeout;
 
-// Load custom message from storage on popup open
-chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
-  if (closingMessage) {
-    document.getElementById("closing-message").value = closingMessage;
-    updateCharCount();
-  }
-});
-
-// Check if we're on a LinkedIn profile, enable personalization, and auto-load overview
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  const url = tabs[0].url;
-  if (url && url.includes("linkedin.com/in/")) {
-    document.getElementById("personalization-section").style.display = "block";
-    loadProfileOverview();
-  }
-});
-
-// Escape user-controlled text before injecting into innerHTML.
+// ===== Small helpers =====
 function esc(str) {
   return String(str || "").replace(/[&<>"']/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[c]));
 }
 
-// Look up "what the company does" from Apollo via the backend (already 7-10 words).
-// companyUrl is the LinkedIn /company/<slug> link, used to disambiguate the match.
+// Backend Claude proxy (named /api/groq for legacy reasons; it calls Claude).
+async function callClaude(prompt) {
+  const response = await fetch(`${API_BASE_URL}/api/groq`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Failed to generate");
+  return data.content;
+}
+
+// ===== Message box (generated opener + custom closing) =====
+chrome.storage.local.get("closingMessage", ({ closingMessage }) => {
+  if (closingMessage) {
+    document.getElementById("closing-message").value = closingMessage;
+    updateMessageDisplay();
+  }
+});
+
+document.getElementById("closing-message").addEventListener("input", () => {
+  updateMessageDisplay();
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    chrome.storage.local.set({ closingMessage: document.getElementById("closing-message").value });
+  }, 500);
+});
+
+// Render the message = generated opener + (optional) custom closing, with count.
+function updateMessageDisplay() {
+  const out = document.getElementById("personalization-output");
+  const base = out.getAttribute("data-base-text") || "";
+  const closing = document.getElementById("closing-message").value.trim();
+  const full = base ? (closing ? `${base} ${closing}` : base) : "";
+
+  out.innerText = full;
+
+  const countEl = document.getElementById("message-count");
+  countEl.innerText = `${full.length} / 300`;
+  countEl.classList.toggle("warning", full.length > 300);
+}
+
+// ===== Copy =====
+const copyToClipboard = (btn) => {
+  const fullText = btn.parentElement.querySelector(".option-box")?.innerText || "";
+  navigator.clipboard.writeText(fullText);
+  btn.classList.add("copied");
+  setTimeout(() => btn.classList.remove("copied"), 2000);
+};
+document.getElementById("personalization-copy").onclick = function () {
+  copyToClipboard(this);
+};
+
+// ===== Company "what they do" (LinkedIn page -> Claude; Apollo fallback) =====
 async function fetchCompanyDescription(companyName, companyUrl = "") {
   if (!companyName) return "";
   try {
@@ -51,11 +87,10 @@ async function fetchCompanyDescription(companyName, companyUrl = "") {
   }
 }
 
-// Condense a raw LinkedIn role description into a 7-10 word phrase via Claude (/api/groq).
 async function condenseRole(text) {
   if (!text || text.trim().length < 12) return "";
   try {
-    const result = await callGemini(buildCondenseRolePrompt(text));
+    const result = await callClaude(buildCondenseRolePrompt(text));
     return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
   } catch (err) {
     console.warn("Role condense failed:", err);
@@ -63,11 +98,10 @@ async function condenseRole(text) {
   }
 }
 
-// Condense a company's LinkedIn description into a 7-10 word phrase via Claude.
 async function condenseCompany(text) {
   if (!text || text.trim().length < 12) return "";
   try {
-    const result = await callGemini(buildCondenseCompanyPrompt(text));
+    const result = await callClaude(buildCondenseCompanyPrompt(text));
     return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
   } catch (err) {
     console.warn("Company condense failed:", err);
@@ -75,8 +109,7 @@ async function condenseCompany(text) {
   }
 }
 
-// "What the company does" in 7-10 words. Prefer the company's own LinkedIn page
-// (exact company); fall back to Apollo only when LinkedIn gave us nothing.
+// Prefer the company's own LinkedIn description; fall back to Apollo.
 async function getCompanyDescription(companyName, companyUrl, linkedinDesc) {
   if (linkedinDesc && linkedinDesc.trim()) {
     const condensed = await condenseCompany(linkedinDesc);
@@ -85,66 +118,19 @@ async function getCompanyDescription(companyName, companyUrl, linkedinDesc) {
   return fetchCompanyDescription(companyName, companyUrl);
 }
 
-// Render one role block: title, @ company • tenure, then two 7-10 word lines:
-//   📝 what they wrote on LinkedIn   |   🏢 what the company does (Apollo)
-function renderRole(label, role, company, tenure, linkedinDesc, apolloDesc) {
-  if (!role || !company) return "";
-  const yrs = tenure?.years;
-  const tenureText = (yrs || yrs === 0) ? ` • ${yrs} yr${yrs !== 1 ? "s" : ""}` : "";
-
-  let html = `<div style="margin-bottom: 4px;"><strong>${label}:</strong> ${esc(role)}</div>`;
-  html += `<div style="margin-left: 12px; color: #666;">@ ${esc(company)}${tenureText}</div>`;
-  if (linkedinDesc) {
-    html += `<div style="margin-left: 12px; margin-top: 3px; color: #444;">📝 ${esc(linkedinDesc)}</div>`;
+// One post -> topic phrase (under 7 words) via Claude.
+async function condensePostTopic(text) {
+  if (!text || text.trim().length < 8) return "";
+  try {
+    const result = await callClaude(buildPostTopicPrompt(text));
+    return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
+  } catch (err) {
+    console.warn("Post topic failed:", err);
+    return "";
   }
-  if (apolloDesc) {
-    html += `<div style="margin-left: 12px; margin-top: 3px; color: #1a5490;">🏢 ${esc(apolloDesc)}</div>`;
-  }
-  html += `<div style="height: 10px;"></div>`;
-  return html;
 }
 
-// Display profile data. descriptions = {
-//   currentLinkedIn, currentApollo, previousLinkedIn, previousApollo } (all optional).
-function displayProfileData(profileData, descriptions = {}) {
-  const detailsEl = document.getElementById("profile-details");
-  let html = "";
-
-  html += renderRole(
-    "Current",
-    profileData.currentRole,
-    profileData.currentCompany,
-    profileData.currentTenure,
-    descriptions.currentLinkedIn,
-    descriptions.currentApollo
-  );
-
-  html += renderRole(
-    "Previous",
-    profileData.previousRole,
-    profileData.previousCompany,
-    profileData.previousTenure,
-    descriptions.previousLinkedIn,
-    descriptions.previousApollo
-  );
-
-  // Education — field of study + years (any time)
-  const edu = profileData.education;
-  if (edu && (edu.school || edu.field)) {
-    let line = `<strong>📚 Education:</strong> `;
-    line += esc(edu.field || edu.degree || edu.school);
-    if (edu.field && edu.school) line += ` — ${esc(edu.school)}`;
-    if (edu.years) line += ` <span style="color: #999;">(${esc(edu.years)})</span>`;
-    html += `<div style="margin-bottom: 8px;">${line}</div>`;
-  } else {
-    html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">📚 Education: Not found</div>`;
-  }
-
-  detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Profile details unavailable</div>";
-}
-
-// Ask the content script for profile data, retrying while the LinkedIn page is
-// still rendering its Experience section (otherwise we can get empty roles).
+// ===== Profile data fetch (retry while LinkedIn finishes rendering) =====
 async function fetchProfileData(retries = 6, delayMs = 400) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   let data = null;
@@ -153,300 +139,180 @@ async function fetchProfileData(retries = 6, delayMs = 400) {
     if (data && data.currentRole && data.currentCompany) return data;
     await new Promise(r => setTimeout(r, delayMs));
   }
-  return data; // best effort after retries
+  return data; // best effort
 }
 
-// Load the profile overview: render scraped data immediately, then fill in
-// Apollo company descriptions as they arrive. Accepts already-fetched data
-// (from the personalize button) so we don't query twice.
+// ===== Profile Overview rendering =====
+// One role block: title, @ company • tenure, 📝 their words, 🏢 what company does.
+function renderRole(label, role, company, tenure, linkedinDesc, apolloDesc) {
+  if (!role || !company) return "";
+  const yrs = tenure?.years;
+  const tenureText = (yrs || yrs === 0) ? ` • ${yrs} yr${yrs !== 1 ? "s" : ""}` : "";
+
+  let html = `<div style="margin-bottom: 3px;"><strong>${esc(label)}:</strong> ${esc(role)}</div>`;
+  html += `<div style="margin-left: 12px; color: #666;">@ ${esc(company)}${tenureText}</div>`;
+  if (linkedinDesc) {
+    html += `<div style="margin-left: 12px; margin-top: 2px; color: #444;">📝 ${esc(linkedinDesc)}</div>`;
+  }
+  if (apolloDesc) {
+    html += `<div style="margin-left: 12px; margin-top: 2px; color: #1a5490;">🏢 ${esc(apolloDesc)}</div>`;
+  }
+  html += `<div style="height: 9px;"></div>`;
+  return html;
+}
+
+// descriptions = { currentLinkedIn, currentApollo, previousLinkedIn, previousApollo }
+function displayProfileData(profileData, descriptions = {}) {
+  const detailsEl = document.getElementById("profile-details");
+  let html = "";
+
+  html += renderRole(
+    "Current", profileData.currentRole, profileData.currentCompany,
+    profileData.currentTenure, descriptions.currentLinkedIn, descriptions.currentApollo
+  );
+  html += renderRole(
+    "Previous", profileData.previousRole, profileData.previousCompany,
+    profileData.previousTenure, descriptions.previousLinkedIn, descriptions.previousApollo
+  );
+
+  const edu = profileData.education;
+  if (edu && (edu.school || edu.field)) {
+    let line = `<strong>📚 Education:</strong> ${esc(edu.field || edu.degree || edu.school)}`;
+    if (edu.field && edu.school) line += ` — ${esc(edu.school)}`;
+    if (edu.years) line += ` <span class="muted">(${esc(edu.years)})</span>`;
+    html += `<div>${line}</div>`;
+  } else {
+    html += `<div class="muted" style="font-size: 11px;">📚 Education: Not found</div>`;
+  }
+
+  detailsEl.innerHTML = html || "<div class='muted'>Profile details unavailable</div>";
+}
+
+// ===== Recent Posts rendering =====
+function displayPostsLoading(posts) {
+  const el = document.getElementById("posts-summary");
+  if (!posts || posts.length === 0) {
+    el.innerHTML = "<div class='muted'>No recent posts found.</div>";
+    return;
+  }
+  el.innerHTML = posts.map((p, i) =>
+    `<div class="post-row"><span class="post-num">${i + 1}.</span>` +
+    `<span class="post-topic muted">summarizing…</span>` +
+    `<span class="post-age">${esc(p.age || "")}</span></div>`
+  ).join("");
+}
+
+function displayPosts(posts, topics) {
+  const el = document.getElementById("posts-summary");
+  if (!posts || posts.length === 0) {
+    el.innerHTML = "<div class='muted'>No recent posts found.</div>";
+    return;
+  }
+  el.innerHTML = posts.map((p, i) => {
+    const topic = topics[i] || p.text.slice(0, 50) + "…";
+    return `<div class="post-row"><span class="post-num">${i + 1}.</span>` +
+      `<span class="post-topic">${esc(topic)}</span>` +
+      `<span class="post-age">${esc(p.age || "")}</span></div>`;
+  }).join("");
+}
+
+// ===== Load everything (overview + posts), enrich asynchronously =====
 async function loadProfileOverview(profileData) {
   const detailsEl = document.getElementById("profile-details");
   try {
     if (!profileData) profileData = await fetchProfileData();
     currentProfileData = profileData;
 
-    // Don't clobber the panel with a degraded view if the page wasn't ready.
     if (!profileData || (!profileData.currentRole && !profileData.previousRole)) {
       console.warn("Profile data not ready (no roles found).");
-      detailsEl.innerHTML = "<div style='color: #999; font-size: 12px;'>Couldn't read this profile. Scroll the page so Experience is visible, then reopen.</div>";
+      detailsEl.innerHTML = "<div class='muted'>Couldn't read this profile. Scroll the page so Experience is visible, then reopen.</div>";
+      document.getElementById("posts-summary").innerHTML = "<div class='muted'>—</div>";
       return;
     }
 
-    // First paint: roles + education show immediately; the two
-    // 7-10 word description lines fill in once Claude/Apollo respond.
+    // First paint: roles + education immediately; descriptions fill in after.
     displayProfileData(profileData);
+
+    // Recent posts: show rows immediately, then their <7-word topics.
+    const posts = (profileData.recentActivity || []).slice(0, 3);
+    displayPostsLoading(posts);
 
     const samePrevCompany =
       profileData.previousCompany &&
       profileData.previousCompany !== profileData.currentCompany;
 
-    // Run all four distillations in parallel:
-    //   📝 LinkedIn role text -> 7-10 words (via Claude /api/groq)
-    //   🏢 company -> 7-10 words (via Apollo /api/company-lookup)
-    const [currentLinkedIn, previousLinkedIn, currentApollo, previousApollo] =
-      await Promise.all([
-        condenseRole(profileData.currentDescription),
-        condenseRole(profileData.previousDescription),
-        getCompanyDescription(
-          profileData.currentCompany,
-          profileData.currentCompanyUrl,
-          profileData.currentCompanyLinkedinDesc
-        ),
-        samePrevCompany
-          ? getCompanyDescription(
-              profileData.previousCompany,
-              profileData.previousCompanyUrl,
-              profileData.previousCompanyLinkedinDesc
-            )
-          : Promise.resolve("")
-      ]);
+    const [
+      currentLinkedIn, previousLinkedIn, currentApollo, previousApollo, ...topics
+    ] = await Promise.all([
+      condenseRole(profileData.currentDescription),
+      condenseRole(profileData.previousDescription),
+      getCompanyDescription(profileData.currentCompany, profileData.currentCompanyUrl, profileData.currentCompanyLinkedinDesc),
+      samePrevCompany
+        ? getCompanyDescription(profileData.previousCompany, profileData.previousCompanyUrl, profileData.previousCompanyLinkedinDesc)
+        : Promise.resolve(""),
+      ...posts.map(p => condensePostTopic(p.text))
+    ]);
 
-    displayProfileData(profileData, {
-      currentLinkedIn,
-      previousLinkedIn,
-      currentApollo,
-      previousApollo
-    });
+    displayProfileData(profileData, { currentLinkedIn, previousLinkedIn, currentApollo, previousApollo });
+    displayPosts(posts, topics);
   } catch (err) {
     console.warn("Could not load profile overview:", err);
-    detailsEl.innerHTML = "<div style='color: #999; font-size: 12px;'>Open a LinkedIn profile, then reopen this popup.</div>";
+    detailsEl.innerHTML = "<div class='muted'>Open a LinkedIn profile, then reopen this popup.</div>";
   }
 }
 
-
-// Auto-save custom message (debounced) and update display
-let saveTimeout;
-document.getElementById("closing-message").addEventListener("input", () => {
-  updateCharCount();
-  updateOptionDisplay();
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
-    chrome.storage.local.set({ closingMessage: document.getElementById("closing-message").value });
-  }, 500);
-});
-
-// Update display with closing message appended.
-// Only Option 1 is an outreach message; Option 2 is the recent-posts gist
-// (context, not a message), so the closing is never appended to it.
-function updateOptionDisplay() {
-  const closingText = document.getElementById("closing-message").value.trim();
-  const option1Base = document.getElementById("option1-output").getAttribute("data-base-text") || "";
-  const option1Full = closingText ? `${option1Base} ${closingText}` : option1Base;
-  document.getElementById("option1-output").innerText = option1Full;
-}
-
-// Update character count (Option 1 only — the sendable message).
-function updateCharCount() {
-  const closingText = document.getElementById("closing-message").value;
-  const option1Base = document.getElementById("option1-output").getAttribute("data-base-text") || "";
-  const totalOpt1 = option1Base.length + (closingText ? 1 + closingText.length : 0);
-
-  const opt1CountEl = document.getElementById("option1-count");
-  opt1CountEl.innerText = `${totalOpt1} / 300`;
-
-  if (totalOpt1 > 300) {
-    opt1CountEl.classList.add("warning");
-  } else {
-    opt1CountEl.classList.remove("warning");
-  }
-}
-
-// ===== 🔧 1. Extract experience =====
-function extractExperience(experienceBlocks) {
-  return {
-    currentCompany:      experienceBlocks[0]?.company || "",
-    currentTitle:        experienceBlocks[0]?.title || "",
-    currentDate:         experienceBlocks[0]?.date || "",
-    currentDescription:  experienceBlocks[0]?.description || "",
-    previousCompany:     experienceBlocks[1]?.company || "",
-    previousTitle:       experienceBlocks[1]?.title || "",
-    previousDescription: experienceBlocks[1]?.description || ""
-  };
-}
-
-// Prompts imported from prompts.js (injected at runtime)
-
-// ===== 🔧 3. Backend API call =====
-async function callGemini(prompt) {
-  const response = await fetch(`${API_BASE_URL}/api/groq`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ prompt })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error || "Failed to generate message");
-  }
-
-  console.log("🤖 API response:", data);
-
-  return data.content;
-}
-
-// ===== 🔧 4. UI helpers =====
-function setStatus(text) {
-  document.getElementById("status").innerText = text;
-}
-
-function setOutput(text) {
-  document.getElementById("output").innerText = text;
-}
-
-// ===== 🔧 5. Copy button handlers =====
-const copyToClipboard = (btn) => {
-  const fullText = btn.previousElementSibling?.innerText || "";
-  navigator.clipboard.writeText(fullText);
-
-  btn.classList.add("copied");
-  setTimeout(() => btn.classList.remove("copied"), 2000);
-};
-
-document.getElementById("option1-copy").onclick = function() {
-  copyToClipboard(this);
-};
-
-document.getElementById("option2-copy").onclick = function() {
-  copyToClipboard(this);
-};
-
-// ===== 🔧 6. Personalization handler =====
+// ===== Generate Message (personalized opener) =====
 document.getElementById("generate-personalization").onclick = async () => {
   const statusEl = document.getElementById("personalization-status");
-  const outputEl = document.getElementById("personalization-output");
   const copyBtn = document.getElementById("personalization-copy");
 
-  statusEl.innerText = "Generating...";
-  outputEl.style.display = "none";
+  statusEl.innerText = "Generating…";
   copyBtn.style.display = "none";
 
   try {
     const profileData = await fetchProfileData();
-
     console.log("📊 Full profile data:", profileData);
 
-    // Refresh the overview with this (retried) data — recovers the panel if the
-    // auto-load on popup open happened before the page finished rendering.
+    // Refresh overview + posts with this (retried) data.
     loadProfileOverview(profileData);
 
-    // Generate opener
     const response = await fetch(`${API_BASE_URL}/api/personalize`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(profileData)
     });
-
     const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to generate personalization");
 
-    if (!response.ok) {
-      throw new Error(data.error || "Failed to generate personalization");
-    }
-
-    let opener = data.personalizationOpener
+    const opener = data.personalizationOpener
       .replace(/^"|"$/g, "")
       .replace(/\n/g, " ")
       .trim();
 
-    outputEl.innerText = opener;
-    outputEl.style.display = "block";
+    document.getElementById("personalization-output").setAttribute("data-base-text", opener);
+    updateMessageDisplay();
     copyBtn.style.display = "flex";
-    statusEl.innerText = "✓ Click again for new";
-
+    statusEl.innerText = "✓ Click again for a new one";
   } catch (err) {
     console.error("❌ Error:", err);
-    let errorMsg = "Error generating opener";
-
-    if (err.message.includes("Receiving end does not exist")) {
-      errorMsg = "Open a LinkedIn profile first";
+    let msg = "Error generating message";
+    if (err.message && err.message.includes("Receiving end does not exist")) {
+      msg = "Open a LinkedIn profile first";
     } else if (err.message) {
-      errorMsg = err.message;
+      msg = err.message;
     }
-
-    outputEl.innerText = errorMsg;
-    outputEl.style.display = "block";
-    statusEl.innerText = "Error";
+    statusEl.innerText = msg;
   }
 };
 
-// ===== 🔧 Copy personalization button =====
-document.getElementById("personalization-copy").onclick = function() {
-  copyToClipboard(this);
-};
-
-// ===== 🔧 6. Main click handler =====
-document.getElementById("generate").onclick = async () => {
-  let seconds = 0;
-  setStatus("Generating... 0s");
-
-  const interval = setInterval(() => {
-    seconds++;
-    setStatus(`Generating... ${seconds}s`);
-  }, 1000);
-
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-    const profile = await chrome.tabs.sendMessage(tab.id, {
-      type: "GET_PROFILE"
-    });
-
-    console.log("📊 Full profile:", profile);
-
-    const exp = extractExperience(profile.experienceBlocks);
-    const firstName = profile.name?.split(" ")[0] || "there";
-
-    // Generate Option 1 (experience)
-    const option1Prompt = buildExperiencePrompt(exp);
-    const option1Result = await callGemini(option1Prompt);
-    let option1Text = option1Result
-      .replace(/^"|"$/g, "")
-      .replace(/\n/g, " ")
-      .trim();
-    option1Text = `Hi ${firstName}, ${option1Text}`;
-
-    document.getElementById("option1-output").setAttribute("data-base-text", option1Text);
-    document.getElementById("option1-output").style.display = "inline-block";
-    document.getElementById("option1-copy").style.display = "inline-block";
-
-    // Generate Option 2 — gist of their latest (up to 3) posts in 3 sentences.
-    let option2Text = "No recent posts found";
-    if (profile.recentActivity && profile.recentActivity.length > 0) {
-      const posts = profile.recentActivity.slice(0, 3);
-      const option2Prompt = buildPostSummaryPrompt(posts);
-      const option2Result = await callGemini(option2Prompt);
-      option2Text = option2Result.replace(/^"|"$/g, "").trim();
-      document.getElementById("option2-copy").style.display = "inline-block";
-    }
-
-    // Option 2 is context (the gist), not a sendable message, so set it
-    // directly rather than going through the closing-message append logic.
-    const option2El = document.getElementById("option2-output");
-    option2El.removeAttribute("data-base-text");
-    option2El.innerText = option2Text;
-    option2El.style.display = "inline-block";
-
-    updateCharCount();
-    updateOptionDisplay();
-
-    clearInterval(interval);
-    setStatus("Done");
-
-  } catch (err) {
-    console.error(err);
-    clearInterval(interval);
-    let errorMsg = "Error generating message";
-
-    if (err.message.includes("Receiving end does not exist")) {
-      errorMsg = "Open a LinkedIn profile page first";
-    }
-
-    document.getElementById("option1-output").innerText = errorMsg;
-    document.getElementById("option2-output").innerText = "";
-    setStatus("Error");
+// ===== Init: auto-load overview + posts when on a LinkedIn profile =====
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const url = tabs[0]?.url || "";
+  if (url.includes("linkedin.com/in/")) {
+    loadProfileOverview();
+  } else {
+    document.getElementById("profile-details").innerHTML =
+      "<div class='muted'>Open a LinkedIn profile (linkedin.com/in/…) to see details.</div>";
+    document.getElementById("posts-summary").innerHTML = "<div class='muted'>—</div>";
   }
-};
+});

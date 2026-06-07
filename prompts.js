@@ -98,6 +98,20 @@ Company text: ${text}
 7-10 word phrase:`;
 }
 
+// One post -> a tiny phrase (under 7 words) of what the post is about.
+function buildPostTopicPrompt(text) {
+  return `In FEWER THAN 7 words, say what this LinkedIn post is about.
+
+Rules:
+- Under 7 words. A topic phrase, not a sentence.
+- Factual. No fluff, no period, no quotes.
+- Lowercase except proper nouns.
+
+Post: ${text}
+
+Topic (under 7 words):`;
+}
+
 // Recent posts gist — summarize the person's latest posts into 3 sentences.
 // This is NOT an outreach line; it's a quick read on what they've been posting about.
 function buildPostSummaryPrompt(posts) {
