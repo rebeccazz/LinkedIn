@@ -143,21 +143,23 @@ async function fetchProfileData(retries = 6, delayMs = 400) {
 }
 
 // ===== Profile Overview rendering =====
-// One role block: title, @ company • tenure, 📝 their words, 🏢 what company does.
+// One role card: tag, title, company · tenure, 📝 their words, 🏢 what company does.
 function renderRole(label, role, company, tenure, linkedinDesc, apolloDesc) {
   if (!role || !company) return "";
   const yrs = tenure?.years;
-  const tenureText = (yrs || yrs === 0) ? ` • ${yrs} yr${yrs !== 1 ? "s" : ""}` : "";
+  const tenureText = (yrs || yrs === 0) ? ` · ${yrs} yr${yrs !== 1 ? "s" : ""}` : "";
 
-  let html = `<div style="margin-bottom: 3px;"><strong>${esc(label)}:</strong> ${esc(role)}</div>`;
-  html += `<div style="margin-left: 12px; color: #666;">@ ${esc(company)}${tenureText}</div>`;
+  let html = `<div class="role-card">`;
+  html += `<div class="role-tag">${esc(label)}</div>`;
+  html += `<div class="role-title">${esc(role)}</div>`;
+  html += `<div class="role-company">${esc(company)}${tenureText}</div>`;
   if (linkedinDesc) {
-    html += `<div style="margin-left: 12px; margin-top: 2px; color: #444;">📝 ${esc(linkedinDesc)}</div>`;
+    html += `<div class="role-line"><span class="ico">📝</span><span>${esc(linkedinDesc)}</span></div>`;
   }
   if (apolloDesc) {
-    html += `<div style="margin-left: 12px; margin-top: 2px; color: #1a5490;">🏢 ${esc(apolloDesc)}</div>`;
+    html += `<div class="role-line company"><span class="ico">🏢</span><span>${esc(apolloDesc)}</span></div>`;
   }
-  html += `<div style="height: 9px;"></div>`;
+  html += `</div>`;
   return html;
 }
 
@@ -177,12 +179,12 @@ function displayProfileData(profileData, descriptions = {}) {
 
   const edu = profileData.education;
   if (edu && (edu.school || edu.field)) {
-    let line = `<strong>📚 Education:</strong> ${esc(edu.field || edu.degree || edu.school)}`;
-    if (edu.field && edu.school) line += ` — ${esc(edu.school)}`;
+    let line = `📚 <strong>${esc(edu.field || edu.degree || edu.school)}</strong>`;
+    if (edu.field && edu.school) line += ` <span class="muted">— ${esc(edu.school)}</span>`;
     if (edu.years) line += ` <span class="muted">(${esc(edu.years)})</span>`;
-    html += `<div>${line}</div>`;
+    html += `<div class="edu-line">${line}</div>`;
   } else {
-    html += `<div class="muted" style="font-size: 11px;">📚 Education: Not found</div>`;
+    html += `<div class="edu-line muted">📚 Education: Not found</div>`;
   }
 
   detailsEl.innerHTML = html || "<div class='muted'>Profile details unavailable</div>";

@@ -9,11 +9,12 @@
         box-sizing: border-box;
       }
       body {
-        width: 440px;
+        width: 460px;
         padding: 20px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
         background: #fafafa;
         color: #1a1a1a;
+        font-size: 14px;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
@@ -23,7 +24,7 @@
         border-bottom: 1px solid #e8e8e8;
       }
       .header h1 {
-        font-size: 17px;
+        font-size: 18px;
         font-weight: 700;
         color: #1a1a1a;
         margin: 0;
@@ -31,45 +32,45 @@
       }
       #generate-personalization {
         width: 100%;
-        padding: 12px 16px;
-        font-size: 15px;
+        padding: 14px 16px;
+        font-size: 16px;
         font-weight: 600;
         color: white;
-        background: #2d7f5a;
+        background: #1a5490;
         border: none;
         border-radius: 10px;
         cursor: pointer;
         transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
         margin-bottom: 8px;
-        box-shadow: 0 3px 12px rgba(38, 115, 77, 0.2);
+        box-shadow: 0 3px 12px rgba(26, 84, 144, 0.22);
         letter-spacing: 0.3px;
       }
       #generate-personalization:hover {
-        background: #246b4b;
-        box-shadow: 0 5px 16px rgba(38, 115, 77, 0.25);
+        background: #0f3a7d;
+        box-shadow: 0 5px 16px rgba(26, 84, 144, 0.28);
         transform: translateY(-1px);
       }
       #generate-personalization:active {
         transform: translateY(0px);
-        box-shadow: 0 2px 8px rgba(38, 115, 77, 0.15);
+        box-shadow: 0 2px 8px rgba(26, 84, 144, 0.18);
       }
       .status-line {
-        font-size: 12px;
+        font-size: 12.5px;
         color: #666;
         text-align: center;
         min-height: 16px;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
       }
       .section {
-        margin-bottom: 14px;
+        margin-bottom: 18px;
       }
       .section-label {
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 700;
-        color: #666;
+        color: #555;
         text-transform: uppercase;
-        letter-spacing: 0.6px;
-        margin-bottom: 8px;
+        letter-spacing: 0.7px;
+        margin-bottom: 9px;
       }
       .option-container {
         position: relative;
@@ -78,21 +79,21 @@
         background: white;
         border: 1px solid #e3e3e3;
         border-radius: 10px;
-        padding: 14px 16px;
-        font-size: 13px;
-        line-height: 1.5;
+        padding: 16px 18px;
+        font-size: 15px;
+        line-height: 1.55;
         color: #1a1a1a;
         white-space: normal;
         word-wrap: break-word;
-        min-height: 56px;
+        min-height: 64px;
         display: flex;
         align-items: flex-start;
-        padding-right: 48px;
+        padding-right: 50px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         transition: all 0.2s;
       }
       .option-box:empty::before {
-        content: "Click \201CGenerate Message\201D above.";
+        content: "Click \201CGenerate Message\201D above to draft an opener.";
         color: #bbb;
       }
       .option-box:hover {
@@ -101,8 +102,8 @@
       }
       .copy-btn {
         position: absolute;
-        top: 12px;
-        right: 12px;
+        top: 13px;
+        right: 13px;
         width: 36px;
         height: 36px;
         background: white;
@@ -114,19 +115,19 @@
         justify-content: center;
         transition: all 0.25s;
         padding: 0;
-        color: #2d7f5a;
+        color: #1a5490;
       }
       .copy-btn:hover {
         background: #f9f9f9;
-        border-color: #2d7f5a;
-        box-shadow: 0 2px 8px rgba(38, 115, 77, 0.12);
+        border-color: #1a5490;
+        box-shadow: 0 2px 8px rgba(26, 84, 144, 0.12);
       }
       .copy-btn:active {
         transform: scale(0.94);
       }
       .copy-btn.copied {
-        background: #2d7f5a;
-        border-color: #2d7f5a;
+        background: #1a5490;
+        border-color: #1a5490;
         color: white;
       }
       .copy-btn svg {
@@ -138,10 +139,10 @@
         stroke: white;
       }
       .option-count {
-        font-size: 11px;
+        font-size: 12px;
         color: #999;
         text-align: right;
-        margin-top: 5px;
+        margin-top: 6px;
       }
       .option-count.warning {
         color: #ff3b30;
@@ -150,12 +151,12 @@
       .divider {
         height: 1px;
         background: #e5e5e7;
-        margin: 4px 0 14px;
+        margin: 6px 0 18px;
       }
       textarea {
         width: 100%;
-        padding: 12px 14px;
-        font-size: 13px;
+        padding: 13px 15px;
+        font-size: 14px;
         font-family: inherit;
         border: 1.5px solid #e3e3e3;
         border-radius: 10px;
@@ -168,33 +169,84 @@
       }
       textarea:focus {
         outline: none;
-        border-color: #2d7f5a;
-        box-shadow: 0 0 0 3px rgba(38, 115, 77, 0.08), 0 3px 12px rgba(38, 115, 77, 0.1);
+        border-color: #1a5490;
+        box-shadow: 0 0 0 3px rgba(26, 84, 144, 0.08), 0 3px 12px rgba(26, 84, 144, 0.1);
       }
       textarea::placeholder {
         color: #aaa;
       }
-      .info-box {
-        background: #f9f9f9;
-        border: 1px solid #e3e3e3;
+
+      /* ===== Profile Overview — scannable cards ===== */
+      .role-card {
+        background: #ffffff;
+        border: 1px solid #ececec;
         border-radius: 10px;
-        padding: 12px 14px;
-        font-size: 12px;
-        line-height: 1.55;
+        padding: 13px 15px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
       }
-      /* Recent posts list */
-      .post-row {
+      .role-tag {
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+        color: #1a5490;
+        margin-bottom: 4px;
+      }
+      .role-title {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: #1a1a1a;
+      }
+      .role-company {
+        font-size: 13px;
+        color: #777;
+        margin-bottom: 8px;
+      }
+      .role-line {
         display: flex;
         gap: 8px;
-        padding: 5px 0;
+        font-size: 13.5px;
+        line-height: 1.45;
+        margin-top: 5px;
+        color: #333;
+      }
+      .role-line .ico {
+        flex: 0 0 auto;
+      }
+      .role-line.company {
+        color: #1a5490;
+      }
+      .edu-line {
+        font-size: 13.5px;
+        line-height: 1.5;
+        padding: 4px 2px;
+        color: #333;
+      }
+
+      /* ===== Recent Posts ===== */
+      .info-box {
+        background: #f9f9f9;
+        border: 1px solid #e9e9e9;
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 13.5px;
+        line-height: 1.55;
+      }
+      .post-row {
+        display: flex;
+        gap: 9px;
+        padding: 7px 0;
+        align-items: baseline;
       }
       .post-row + .post-row {
-        border-top: 1px dashed #e8e8e8;
+        border-top: 1px dashed #e6e6e6;
       }
       .post-num {
         flex: 0 0 auto;
         font-weight: 700;
-        color: #2d7f5a;
+        color: #1a5490;
       }
       .post-topic {
         flex: 1 1 auto;
@@ -203,7 +255,7 @@
       .post-age {
         flex: 0 0 auto;
         color: #aaa;
-        font-size: 11px;
+        font-size: 12px;
       }
       .muted {
         color: #999;
@@ -219,9 +271,9 @@
     <button id="generate-personalization">Generate Message</button>
     <div id="personalization-status" class="status-line"></div>
 
-    <!-- 2. Generated message -->
+    <!-- 2. Personalized opening -->
     <div class="section">
-      <div class="section-label">Message</div>
+      <div class="section-label">Personalized Opening</div>
       <div class="option-container">
         <div id="personalization-output" class="option-box"></div>
         <button id="personalization-copy" class="copy-btn" style="display:none;" title="Copy to clipboard">
@@ -234,7 +286,7 @@
       <div id="message-count" class="option-count">0 / 300</div>
     </div>
 
-    <!-- 3. Custom closing (appended to the message) -->
+    <!-- 3. Custom closing (appended to the opening) -->
     <div class="section">
       <div class="section-label">Custom Closing</div>
       <textarea id="closing-message" placeholder="Add a personalized closing or signature..."></textarea>
@@ -245,7 +297,7 @@
     <!-- 4. Profile overview -->
     <div class="section">
       <div class="section-label">Profile Overview</div>
-      <div id="profile-details" class="info-box">
+      <div id="profile-details">
         <div class="muted">Loading profile…</div>
       </div>
     </div>
