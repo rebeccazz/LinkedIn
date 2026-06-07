@@ -67,12 +67,13 @@ Output only the sentence. Must be under 100 chars.
 `;
 }
 
-// Condense a LinkedIn role description into a 7-10 word phrase of what they do.
+// Condense a LinkedIn role description into a 7-8 word phrase of what they do.
 function buildCondenseRolePrompt(text) {
-  return `Condense the following LinkedIn role description into a single phrase of 7 to 10 words describing what this person does/did in the role.
+  return `Condense the following LinkedIn role description into a single short phrase of 7 to 8 words describing what this person does/did in the role.
 
 Rules:
-- Between 7 and 10 words. No more, no less.
+- 7 to 8 words. NEVER more than 8 words. This is a hard limit.
+- Drop numbers, dollar amounts, and extra clauses — keep just the core.
 - Factual and specific. Keep concrete nouns (what they built, sold, led, grew).
 - No bullet points, no period at the end, no quotes.
 - Lowercase except proper nouns and acronyms.
@@ -80,22 +81,23 @@ Rules:
 
 Description: ${text}
 
-7-10 word phrase:`;
+Phrase (max 8 words):`;
 }
 
-// Condense a company's description (from its LinkedIn page) into 7-10 words.
+// Condense a company's description (from its LinkedIn page) into 7-8 words.
 function buildCondenseCompanyPrompt(text) {
-  return `In 7 to 10 words, say what this company does, based only on the text below.
+  return `In 7 to 8 words, say what this company does, based only on the text below.
 
 Rules:
-- Between 7 and 10 words. No more, no less.
+- 7 to 8 words. NEVER more than 8 words. This is a hard limit.
 - Specific and factual. Keep concrete nouns (product, industry, who they serve).
+- Drop adjectives and qualifiers you don't need to stay under 8 words.
 - No fluff, no period at the end, no quotes.
 - Do NOT invent anything not in the text.
 
 Company text: ${text}
 
-7-10 word phrase:`;
+Phrase (max 8 words):`;
 }
 
 // One post -> a tiny phrase (under 7 words) of what the post is about.

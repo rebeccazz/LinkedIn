@@ -13,6 +13,12 @@ function esc(str) {
   }[c]));
 }
 
+// Hard cap a phrase to at most `max` words (safety net so the 🏢/📝 lines stay short).
+function capWords(text, max = 8) {
+  const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+  return words.length <= max ? words.join(" ") : words.slice(0, max).join(" ");
+}
+
 // Backend Claude proxy (named /api/groq for legacy reasons; it calls Claude).
 async function callClaude(prompt) {
   const response = await fetch(`${API_BASE_URL}/api/groq`, {
@@ -80,7 +86,7 @@ async function fetchCompanyDescription(companyName, companyUrl = "") {
       console.warn("Company lookup error for", companyName, data);
       return "";
     }
-    return data.description || "";
+    return capWords(data.description || "", 8);
   } catch (err) {
     console.warn("Company lookup failed for", companyName, err);
     return "";
@@ -91,7 +97,7 @@ async function condenseRole(text) {
   if (!text || text.trim().length < 12) return "";
   try {
     const result = await callClaude(buildCondenseRolePrompt(text));
-    return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
+    return capWords((result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim(), 8);
   } catch (err) {
     console.warn("Role condense failed:", err);
     return "";
@@ -102,7 +108,7 @@ async function condenseCompany(text) {
   if (!text || text.trim().length < 12) return "";
   try {
     const result = await callClaude(buildCondenseCompanyPrompt(text));
-    return (result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim();
+    return capWords((result || "").replace(/^"|"$/g, "").replace(/\n/g, " ").trim(), 8);
   } catch (err) {
     console.warn("Company condense failed:", err);
     return "";

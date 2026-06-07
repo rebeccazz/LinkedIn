@@ -253,12 +253,12 @@ async function distillDescription(name, description, claudeApiKey) {
   if (!description) return "";
   if (!claudeApiKey) return firstSentence(description);
 
-  const prompt = `In 7 to 10 words, say what this company does. Be specific and factual. No fluff, no period, no quotes. Return ONLY the phrase.
+  const prompt = `In 7 to 8 words (never more than 8), say what this company does. Be specific and factual. Drop adjectives you don't need. No fluff, no period, no quotes. Return ONLY the phrase.
 
 Company: ${name}
 Description: ${description}
 
-7-10 word phrase:`;
+Phrase (max 8 words):`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
