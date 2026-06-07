@@ -43,12 +43,16 @@ function displayProfileData(profileData) {
     if (profileData.education.field) html += ` (${profileData.education.field})`;
     if (profileData.education.gradYear) html += ` • ${profileData.education.gradYear}`;
     html += `</div>`;
+  } else {
+    html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">📚 Education: Not found</div>`;
   }
 
   // Volunteer work (last 5 years)
   if (profileData.volunteerWork && profileData.volunteerWork.org) {
     const recency = profileData.volunteerWork.isRecent ? '✓ Recent' : 'Older';
     html += `<div style="margin-bottom: 8px;"><strong>Volunteer:</strong> ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org} <span style="color: #999;">(${recency})</span></div>`;
+  } else {
+    html += `<div style="margin-bottom: 8px; font-size: 11px; color: #999;">🤝 Volunteer: Not found</div>`;
   }
 
   detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Profile details unavailable</div>";
