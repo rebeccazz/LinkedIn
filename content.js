@@ -116,7 +116,7 @@ function getRecentActivity() {
   return results;
 }
 
-// Extract education info
+// Extract education info with more detail
 function getEducation() {
   const sections = Array.from(document.querySelectorAll("section"));
   const eduSection = sections.find(sec => sec.innerText.includes("Education"));
@@ -132,14 +132,29 @@ function getEducation() {
   const schoolImg = eduItem.querySelector('img[alt]');
   const school = schoolImg?.alt?.replace(/ logo$/i, '').trim() || '';
 
+  // Get all text content from the item
+  const allText = eduItem.innerText;
   const paras = Array.from(eduItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+
+  // Parse education details
   const degree = paras[0] || '';
   const field = paras[1] || '';
 
-  return { school, degree, field };
+  // Try to find graduation year in the text
+  let gradYear = '';
+  const yearMatch = allText.match(/(\d{4})/);
+  if (yearMatch) {
+    gradYear = yearMatch[1];
+  }
+
+  const education = { school, degree, field };
+  if (gradYear) education.gradYear = gradYear;
+
+  console.log("✅ Education found:", education);
+  return education;
 }
 
-// Extract volunteer work
+// Extract volunteer work with recency check (last 5 years)
 function getVolunteerWork() {
   const sections = Array.from(document.querySelectorAll("section"));
   const volSection = sections.find(sec => sec.innerText.includes("Volunteer") || sec.innerText.includes("Causes"));
@@ -152,11 +167,50 @@ function getVolunteerWork() {
   const volItem = volSection.querySelector('[componentkey^="entity-collection-item"]');
   if (!volItem) return null;
 
+  const allText = volItem.innerText;
   const paras = Array.from(volItem.querySelectorAll('p')).map(p => p.innerText.trim()).filter(Boolean);
+
   const role = paras[0] || '';
   const org = paras[1] || '';
 
-  return { role, org };
+  // Check if volunteer work is recent (within last 5 years)
+  // Look for date patterns like "2020–Present" or "2024"
+  const currentYear = new Date().getFullYear();
+  let isRecent = false;
+
+  const dateMatch = allText.match(/(\d{4})/);
+  if (dateMatch) {
+    const year = parseInt(dateMatch[1]);
+    if (currentYear - year <= 5) {
+      isRecent = true;
+    }
+  } else if (allText.includes("Present")) {
+    isRecent = true;
+  }
+
+  const volunteer = { role, org, isRecent };
+
+  console.log("✅ Volunteer work found:", volunteer);
+  return volunteer;
+}
+
+// Calculate years at a specific company
+function getYearsAtCompany(experienceBlock) {
+  if (!experienceBlock || !experienceBlock.date) return null;
+
+  const dateText = experienceBlock.date;
+  const yearMatch = dateText.match(/(\d{4})/);
+
+  if (!yearMatch) return null;
+
+  const startYear = parseInt(yearMatch[0]);
+  const currentYear = new Date().getFullYear();
+
+  // Check if still employed (contains "Present")
+  const isCurrentRole = dateText.includes("Present");
+
+  const years = currentYear - startYear;
+  return { years, isCurrent: isCurrentRole };
 }
 
 // Calculate years in industry from experience
@@ -214,7 +268,7 @@ function getProfileDataForPersonalization() {
   const basicData = getProfileData();
   const experienceBlocks = basicData.experienceBlocks || [];
 
-  // Extract name parts - with fallback
+  // Extract name parts
   let firstName = 'there', lastName = '';
   if (basicData.name) {
     const nameParts = basicData.name.trim().split(/\s+/);
@@ -222,13 +276,16 @@ function getProfileDataForPersonalization() {
     lastName = nameParts.slice(1).join(' ') || '';
   }
 
-  // Get current and previous roles
-  // Use basicData.title as fallback if experienceBlocks is empty
+  // Get current and previous roles with tenure
   const currentRole = (experienceBlocks[0]?.title || basicData.title || '').trim();
   const currentCompany = (experienceBlocks[0]?.company || '').trim();
+  const currentTenure = getYearsAtCompany(experienceBlocks[0]);
+
   const previousRole = (experienceBlocks[1]?.title || '').trim();
   const previousCompany = (experienceBlocks[1]?.company || '').trim();
+  const previousTenure = getYearsAtCompany(experienceBlocks[1]);
 
+  // Get education and volunteer info
   const education = getEducation();
   const volunteerWork = getVolunteerWork();
   const yearsInIndustry = calculateYearsInIndustry(experienceBlocks);
@@ -238,8 +295,10 @@ function getProfileDataForPersonalization() {
     lastName,
     currentRole,
     currentCompany,
+    currentTenure,
     previousRole,
     previousCompany,
+    previousTenure,
     yearsInIndustry,
     education,
     volunteerWork,
@@ -247,11 +306,7 @@ function getProfileDataForPersonalization() {
     recentActivity: basicData.recentActivity
   };
 
-  console.log("✅ Profile data extracted:");
-  console.log("   Name:", firstName, lastName);
-  console.log("   Current:", currentRole, "@", currentCompany);
-  console.log("   Previous:", previousRole, "@", previousCompany);
-  console.log("   Full data:", profileData);
+  console.log("✅ Full profile data:", profileData);
 
   return profileData;
 }

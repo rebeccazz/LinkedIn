@@ -28,34 +28,39 @@ async function loadAndDisplayProfileData(tabId) {
     const detailsEl = document.getElementById("profile-details");
     let html = "";
 
-    if (profileData.firstName) {
-      html += `<strong>${profileData.firstName}${profileData.lastName ? " " + profileData.lastName : ""}</strong><br>`;
-    }
-
+    // Current role
     if (profileData.currentRole && profileData.currentCompany) {
-      html += `📍 <strong>${profileData.currentRole}</strong> at ${profileData.currentCompany}<br>`;
+      const tenure = profileData.currentTenure?.years || '?';
+      html += `<div style="margin-bottom: 10px;"><strong>Current:</strong> ${profileData.currentRole}</div>`;
+      html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.currentCompany}${profileData.currentTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
     }
 
+    // Previous role
     if (profileData.previousRole && profileData.previousCompany) {
-      html += `← <strong>${profileData.previousRole}</strong> at ${profileData.previousCompany}<br>`;
+      const tenure = profileData.previousTenure?.years || '?';
+      html += `<div style="margin-bottom: 10px;"><strong>Previous:</strong> ${profileData.previousRole}</div>`;
+      html += `<div style="margin-left: 12px; margin-bottom: 10px; color: #666;">@ ${profileData.previousCompany}${profileData.previousTenure ? ` • ${tenure} yr${tenure !== 1 ? 's' : ''}` : ''}</div>`;
     }
 
-    if (profileData.yearsInIndustry) {
-      html += `⏱️ ~${profileData.yearsInIndustry} years in industry<br>`;
-    }
-
+    // Education
     if (profileData.education && profileData.education.school) {
-      html += `🎓 ${profileData.education.school}${profileData.education.degree ? " (" + profileData.education.degree + ")" : ""}<br>`;
+      html += `<div style="margin-bottom: 8px;"><strong>Education:</strong> ${profileData.education.school}`;
+      if (profileData.education.degree) html += ` • ${profileData.education.degree}`;
+      if (profileData.education.field) html += ` (${profileData.education.field})`;
+      if (profileData.education.gradYear) html += ` • ${profileData.education.gradYear}`;
+      html += `</div>`;
     }
 
+    // Volunteer work (last 5 years)
     if (profileData.volunteerWork && profileData.volunteerWork.org) {
-      html += `🤝 ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org}<br>`;
+      const recency = profileData.volunteerWork.isRecent ? '✓ Recent' : 'Older';
+      html += `<div style="margin-bottom: 8px;"><strong>Volunteer:</strong> ${profileData.volunteerWork.role} at ${profileData.volunteerWork.org} <span style="color: #999;">(${recency})</span></div>`;
     }
 
-    detailsEl.innerHTML = html || "<div style='color: #999;'>No details found</div>";
+    detailsEl.innerHTML = html || "<div style='color: #999; font-size: 12px;'>Loading profile details...</div>";
   } catch (err) {
     console.log("Profile data not available:", err.message);
-    document.getElementById("profile-details").innerHTML = "<div style='color: #999;'>Open a LinkedIn profile to see details</div>";
+    document.getElementById("profile-details").innerHTML = "<div style='color: #999; font-size: 12px;'>Open a LinkedIn profile to see details</div>";
   }
 }
 
